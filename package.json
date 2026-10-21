@@ -1,0 +1,28 @@
+{
+  "name": "tsmv",
+  "version": "0.0.0",
+  "type": "module",
+  "description": "TS/JS ファイルの移動や alias の追加に合わせて、import を 1 回のパスで書き換える",
+  "bin": {
+    "tsmv": "dist/cli.js"
+  },
+  "files": [
+    "dist/cli.js",
+    "dist/worker.js"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "test": "bun test ./test",
+    "build": "bun build src/cli.ts src/worker.ts --target=node --external oxc-parser --outdir dist",
+    "build:bin": "bun build src/main.ts src/worker.ts --compile --outfile dist/tsmv-darwin-arm64",
+    "bench": "bun bench/run.ts"
+  },
+  "devDependencies": {
+    "typescript": "5"
+  },
+  "dependencies": {
+    "oxc-parser": "^0.155.0"
+  }
+}
