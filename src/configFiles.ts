@@ -72,10 +72,12 @@ export const rewriteJsonPaths = (
 
     let next = relative(dirAfter, absoluteAfter);
     if (value.startsWith('./') && !next.startsWith('.')) next = `./${next}`;
+    const rewritten = next + value.slice(head.length);
+    if (rewritten === value) continue;
     edits.push({
       start: match.index + 1,
       end: match.index + 1 + value.length,
-      text: next + value.slice(head.length),
+      text: rewritten,
     });
   }
   if (edits.length === 0) return undefined;

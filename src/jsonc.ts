@@ -1,3 +1,21 @@
+// 空白とコメントを飛ばした次の位置
+const skipBlankAndComments = (text: string, from: number): number => {
+  let i = from;
+  while (i < text.length) {
+    if (/\s/.test(text[i])) {
+      i++;
+    } else if (text[i] === '/' && text[i + 1] === '/') {
+      while (i < text.length && text[i] !== '\n') i++;
+    } else if (text[i] === '/' && text[i + 1] === '*') {
+      const end = text.indexOf('*/', i + 2);
+      i = end === -1 ? text.length : end + 2;
+    } else {
+      break;
+    }
+  }
+  return i;
+};
+
 // コメントと末尾のカンマを許す JSON（tsconfig 用）
 export const parseJsonc = (text: string): unknown => {
   const length = text.length;
@@ -17,8 +35,7 @@ export const parseJsonc = (text: string): unknown => {
       const end = text.indexOf('*/', i + 2);
       i = end === -1 ? length : end + 2;
     } else if (char === ',') {
-      let next = i + 1;
-      while (next < length && /\s/.test(text[next])) next++;
+      const next = skipBlankAndComments(text, i + 1);
       if (text[next] !== '}' && text[next] !== ']') out += char;
       i++;
     } else {
