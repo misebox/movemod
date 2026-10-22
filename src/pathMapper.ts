@@ -50,6 +50,10 @@ export const checkMoves = (
         problems.push(`destination is inside another source: ${to}`);
         break;
       }
+      if (tos.has(dir)) {
+        problems.push(`destination is inside another destination: ${to}`);
+        break;
+      }
     }
   }
   if (problems.length > 0) throw new Error(problems.join('\n'));
