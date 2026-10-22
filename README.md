@@ -53,6 +53,14 @@ Normalize the import style inside a folder:
 npx movemod src
 ```
 
+## What is rewritten
+
+- `import`, `export ... from`, `import()`, `require`, `require.resolve`, `import.meta.resolve`, `new URL(..., import.meta.url)`, `/// <reference path>`, and `vi.mock` / `jest.mock` calls.
+- Relative paths, tsconfig `paths` and `baseUrl` aliases, and workspace package names (`@scope/pkg/src/x`).
+- Paths in `package.json` and `tsconfig*.json`.
+
+Files that are not valid UTF-8 or have syntax errors are skipped with a `warning:` line. Add `--strict` to exit with 1 on warnings.
+
 ## Import style
 
 Use a relative path when `./` works. When `../` is needed, use a tsconfig `paths` alias if it is shorter.
