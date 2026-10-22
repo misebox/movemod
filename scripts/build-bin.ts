@@ -58,6 +58,8 @@ const outfile = join(ROOT, 'dist', `movemod-${target}${target.startsWith('win32'
 
 const result = await Bun.build({
   entrypoints: [join(ROOT, 'src', 'main.ts'), join(ROOT, 'src', 'worker.ts')],
+  // oxc-parser が代わりに探す他の OS 用と wasm 用のパッケージは、入っていなくても解決しない
+  external: ['@oxc-parser/binding-*'],
   compile: { target: `bun-${target}` as Bun.Build.Target, outfile },
   plugins: [
     {
