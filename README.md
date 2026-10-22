@@ -32,8 +32,9 @@ Dry run: 3 files, 3 imports would change (7 files scanned). Nothing was written.
 With no options, in TS/JS files (`.ts`, `.tsx`, `.mts`, `.cts`, `.js`, `.jsx`, `.mjs`, `.cjs`):
 
 - Every import that points to a moved path, and the imports inside the moved files.
-- Forms: `import`, `export ... from`, `import()`, `require`, `require.resolve`, `import.meta.resolve`, `new URL(..., import.meta.url)`, `/// <reference path>`, and `vi` / `jest` module functions (`mock`, `doMock`, `unmock`, `importActual`, ...).
-- Written as: a relative path, a tsconfig `paths` or `baseUrl` alias, or a workspace package subpath (`@scope/pkg/src/x`).
+- Syntax: `import`, `export ... from`, `import()`, `require`, `require.resolve`, `import.meta.resolve`, `new URL(..., import.meta.url)`, `/// <reference path>`, and `vi` / `jest` mock functions (`vi.mock`, `jest.doMock`, ...).
+- Paths: relative paths, tsconfig `paths` / `baseUrl` aliases, and workspace package subpaths (`@scope/pkg/src/x`).
+- Style: see [Import style](#import-style). A package subpath stays a package subpath.
 
 Not changed, but listed under [Check by hand](#check-by-hand): paths in strings, `package.json`, `tsconfig*.json`, `jsconfig*.json`, and other config files such as CI workflows.
 
@@ -41,7 +42,7 @@ Files that are not valid UTF-8 or have syntax errors are skipped with a `warning
 
 With options:
 
-- `--config`: also rewrite the paths in `package.json`, `tsconfig*.json` and `jsconfig*.json` (`main`, `exports`, `paths`, `include`, `extends`, ...). A moved config file also gets its own relative paths fixed.
+- `--rewrite-config`: also rewrite the paths in `package.json`, `tsconfig*.json` and `jsconfig*.json` (`main`, `exports`, `paths`, `include`, `extends`, ...). A moved config file also gets its own relative paths fixed.
 - `--func <name>`: also rewrite the first argument of your own function, e.g. `loadModule('./foo')`.
 - `--include <path>`: also rewrite files that the tsconfig does not cover.
 
@@ -85,7 +86,7 @@ Check by hand: moved paths in config files (1)
 ```
 
 - Strings: a path inside a string that is not an import. Use `--func <name>` to rewrite the first argument of a function you name.
-- Config files: a moved path in `package.json`, `tsconfig*.json`, `jsconfig*.json` (`--config` rewrites these) or in a file such as a CI workflow (never rewritten).
+- Config files: a moved path in `package.json`, `tsconfig*.json`, `jsconfig*.json` (`--rewrite-config` rewrites these) or in a file such as a CI workflow (never rewritten).
 
 ## Faster standalone binary
 
@@ -147,5 +148,5 @@ From each path, go up to the root and use the first folder that has `tsconfig.js
 | `--verbose` | List every changed line |
 | `--timing` | Show the time of each stage |
 | `--json` | Print the result as JSON |
-| `--config` | Also rewrite paths in `package.json`, `tsconfig*.json` and `jsconfig*.json`. Without it they are only reported |
+| `--rewrite-config` | Also rewrite paths in `package.json`, `tsconfig*.json` and `jsconfig*.json`. Without it they are only reported |
 | `--force` | Apply even with warnings. Without it, warnings stop the run before any change |

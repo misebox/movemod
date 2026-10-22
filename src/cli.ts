@@ -41,7 +41,7 @@ Options:
   --verbose                 list every changed line
   --timing                  show the time of each stage
   --json                    print the result as JSON
-  --config                  also rewrite paths in package.json, tsconfig*.json and jsconfig*.json (default: only report them)
+  --rewrite-config          also rewrite paths in package.json, tsconfig*.json and jsconfig*.json (default: only report them)
   --force                   apply even with warnings (skipped files, unresolved imports); without it, warnings stop the run before any change
   -h, --help                show this help`;
 
@@ -62,7 +62,7 @@ const parse = () =>
       timing: { type: 'boolean' },
       json: { type: 'boolean' },
       force: { type: 'boolean' },
-      config: { type: 'boolean' },
+      'rewrite-config': { type: 'boolean' },
     },
   });
 
@@ -171,7 +171,7 @@ const options: Options = {
   detail: dryRun || (values.verbose ?? false),
   apply: !dryRun,
   force: values.force ?? false,
-  config: values.config ?? false,
+  rewriteConfig: values['rewrite-config'] ?? false,
 };
 
 const cwd = resolveInput('.');

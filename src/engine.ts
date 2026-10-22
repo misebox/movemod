@@ -52,7 +52,7 @@ export type Options = {
   // Apply even when there are warnings. Without it, warnings stop the run before anything is changed
   force?: boolean;
   // Rewrite paths in package.json, tsconfig*.json and jsconfig*.json. Without it, they are only reported
-  config?: boolean;
+  rewriteConfig?: boolean;
 };
 
 export type Result = {
@@ -283,11 +283,11 @@ export const run = async (options: Options): Promise<Result> => {
       const edit = REWRITABLE_JSON.test(name)
         ? rewriteJsonPaths(file, text, map, (path) => existsSync(toNative(path)))
         : undefined;
-      if (edit && options.config) {
+      if (edit && options.rewriteConfig) {
         edits.push({ oldPath: file, newPath: map(file), text: edit.text });
         configFilesChanged.push(file);
       } else if (edit) {
-        // Not rewritten without --config: report the lines that would change
+        // Not rewritten without --rewrite-config: report the lines that would change
         const lines = text.split('\n');
         for (const line of edit.changedLines) configHits.push({ file, line, text: lines[line - 1].trim() });
       }

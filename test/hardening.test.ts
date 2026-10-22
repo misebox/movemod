@@ -311,20 +311,20 @@ describe('config files', () => {
       'src/index.ts': 'export {};\n',
     });
 
-  test('are only reported without --config', async () => {
+  test('are only reported without --rewrite-config', async () => {
     const root = make();
 
-    const result = await run(base(root, { config: false, moves: [move(root, 'src', 'lib')] }));
+    const result = await run(base(root, { rewriteConfig: false, moves: [move(root, 'src', 'lib')] }));
 
     expect(read(root, 'package.json')).toContain('./src/index.ts');
     expect(result.configFilesChanged).toEqual([]);
     expect(result.configHits.some((hit) => hit.file.endsWith('package.json') && hit.text.includes('./src/index.ts'))).toBe(true);
   });
 
-  test('are rewritten with --config', async () => {
+  test('are rewritten with --rewrite-config', async () => {
     const root = make();
 
-    const result = await run(base(root, { config: true, moves: [move(root, 'src', 'lib')] }));
+    const result = await run(base(root, { rewriteConfig: true, moves: [move(root, 'src', 'lib')] }));
 
     expect(read(root, 'package.json')).toContain('./lib/index.ts');
     expect(result.configFilesChanged.length).toBe(2);
