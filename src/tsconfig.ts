@@ -19,7 +19,8 @@ type RawConfig = {
 // '*' で前後に分けたパス。'*' が無いときは wildcard が false
 export type PathPattern = { prefix: string; suffix: string; wildcard: boolean };
 
-export type Alias = PathPattern & { targets: PathPattern[] };
+// implicit は、baseUrl から暗黙に決まる alias（'components/Button' のように書く）。paths には書かれていない
+export type Alias = PathPattern & { targets: PathPattern[]; implicit?: boolean };
 
 export type Project = {
   dir: string;
@@ -125,6 +126,13 @@ export const loadProject = (tsconfig: string): Project => {
       targets: targets.map((target) => splitWildcard(resolve(pathsBase, target))),
     }))
     .sort((a, b) => b.prefix.length - a.prefix.length);
+  if (baseUrl !== undefined) {
+    aliases.push({
+      ...splitWildcard('*'),
+      targets: [splitWildcard(`${baseUrl}/*`)],
+      implicit: true,
+    });
+  }
 
   return {
     dir,

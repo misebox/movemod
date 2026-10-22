@@ -49,7 +49,7 @@ export const processChunk = (input: ChunkInput, fs: FsIndex = createFsIndex()): 
   const map = createPathMapper(input.moves);
   const packages = createPackages(input.packageList, map);
   const contexts = input.aliasesByProject.map((aliases) =>
-    createProjectContext(aliases, packages.names),
+    createProjectContext(aliases, packages.names, fs),
   );
   const rewrite = createRewriter({
     fs,

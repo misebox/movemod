@@ -24,11 +24,14 @@ export type FileResult = {
   warnings: string[];
 };
 
-type Target = { resolved: Resolved; origin: Origin };
+// implicit は、baseUrl 基準の書き方（'components/Button'）で指されているとき
+type Target = { resolved: Resolved; origin: Origin; implicit?: boolean };
 
 // tsconfig ごとの状態。指定子の解決結果は、同じ指定子なら 1 回だけ求める
 export type ProjectContext = {
+  // paths に書かれた alias と、baseUrl から決まる暗黙の alias
   aliases: Alias[];
+  implicitAliases: Alias[];
   prefilter: RegExp;
   cache: Map<string, Target | null>;
 };
@@ -52,17 +55,28 @@ export type RewriterOptions = {
 const escapeRegExp = (text: string) => text.replace(/[.+*?^${}()|[\]\\]/g, '\\$&');
 
 // 相対パスか alias かパッケージ名で始まる文字列が無いファイルは、パースしない
+// prefix が空の alias（"*" や baseUrl）は、行き先のフォルダにあるファイル名とフォルダ名で始まる文字列だけを見る
+const entryHeads = (fs: FsIndex, alias: Alias): string[] =>
+  alias.targets
+    .filter((target) => target.wildcard && target.prefix.endsWith('/'))
+    .flatMap((target) => [...fs.entries(target.prefix.slice(0, -1)).keys()])
+    .map((name) => escapeRegExp(name.replace(/\.[^.]+$/, '')))
+    .filter((head) => head !== '');
+
 export const createProjectContext = (
-  aliases: Alias[],
+  all: Alias[],
   packageNames: string[],
+  fs: FsIndex,
 ): ProjectContext => {
   const heads = [
     '\\.{1,2}(?:\\/|[\'"`])',
-    ...aliases.map((alias) => escapeRegExp(alias.prefix)).filter((head) => head !== ''),
+    ...all.map((alias) => escapeRegExp(alias.prefix)).filter((head) => head !== ''),
+    ...all.filter((alias) => alias.prefix === '').flatMap((alias) => entryHeads(fs, alias)),
     ...packageNames.map(escapeRegExp),
   ];
   return {
-    aliases,
+    aliases: all.filter((alias) => !alias.implicit),
+    implicitAliases: all.filter((alias) => alias.implicit),
     prefilter: new RegExp(`['"\`](?:${heads.join('|')})|///\\s*<reference\\s+path`),
     cache: new Map(),
   };
@@ -113,8 +127,11 @@ export const createRewriter = (options: RewriterOptions) => {
       if (resolved) target = { resolved, origin: 'relative' };
     } else {
       const aliased = resolveAlias(fs, project.aliases, text);
+      const bare = aliased ? undefined : resolveAlias(fs, project.implicitAliases, text);
       if (aliased) {
         target = { resolved: aliased, origin: 'alias' };
+      } else if (bare) {
+        target = { resolved: bare, origin: 'alias', implicit: true };
       } else {
         const packaged = resolvePackage(text);
         if (packaged) target = { resolved: packaged, origin: 'package' };
@@ -153,7 +170,7 @@ export const createRewriter = (options: RewriterOptions) => {
     project: ProjectContext,
     file: string,
     newPath: string,
-    { resolved, origin }: Target,
+    { resolved, origin, implicit }: Target,
   ): string => {
     const targetNew = map(resolved.file);
     const target = specifierTarget(resolved, targetNew);
@@ -161,12 +178,12 @@ export const createRewriter = (options: RewriterOptions) => {
     const importerBefore = packages.nearestBefore(file);
     const importerAfter = packages.nearestAfter(newPath);
     const targetPackage = packages.nearestAfter(targetNew);
-    const crossesPackages =
-      importerAfter !== undefined &&
+    const importerPackageChanged = importerAfter !== undefined && importerBefore !== importerAfter;
+    if (
       targetPackage !== undefined &&
-      importerAfter !== targetPackage;
-    const importerPackageChanged = importerBefore !== importerAfter;
-    if (crossesPackages && (origin === 'package' || importerPackageChanged)) {
+      importerAfter !== targetPackage &&
+      (origin === 'package' || importerPackageChanged)
+    ) {
       const inside = relative(packages.dirAfter(targetPackage), target);
       return inside === '' ? targetPackage.name : `${targetPackage.name}/${inside}`;
     }
@@ -174,7 +191,7 @@ export const createRewriter = (options: RewriterOptions) => {
     return chooseSpecifier({
       style,
       origin,
-      aliases: project.aliases,
+      aliases: implicit ? [...project.aliases, ...project.implicitAliases] : project.aliases,
       fromDir: dirname(newPath),
       target,
     });
