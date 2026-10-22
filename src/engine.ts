@@ -47,10 +47,14 @@ export type Options = {
   detail?: boolean;
   // false のときは何も変更せず、結果だけ返す
   apply: boolean;
+  // 警告があるときは、何も変更せずにエラーにする
+  strict?: boolean;
 };
 
 export type Result = {
   scannedFiles: number;
+  // 構文エラーなどで書き換えなかったファイルの数
+  skippedFiles: number;
   changedFiles: number;
   changes: Change[];
   suspects: Suspect[];
@@ -123,10 +127,15 @@ const listProjectFiles = (fs: FsIndex, project: Project, seen: Set<string>): str
   return files;
 };
 
-// dist/ などに package.json の写しがあっても取り違えないよう、同じ名前ではいちばん浅いものを使う
+const depthOf = (dir: string) => dir.split('/').length;
+
+// dist/ などに package.json の写しがあっても取り違えないよう、同じ名前ではいちばん浅いもの（同じ深さなら名前順）を使う
 const dropDuplicateNames = (list: Pkg[], warnings: string[]): Pkg[] => {
   const byName = new Map<string, Pkg>();
-  for (const pkg of [...list].sort((a, b) => a.dir.length - b.dir.length)) {
+  const shallowFirst = [...list].sort(
+    (a, b) => depthOf(a.dir) - depthOf(b.dir) || a.dir.localeCompare(b.dir),
+  );
+  for (const pkg of shallowFirst) {
     const kept = byName.get(pkg.name);
     if (kept) {
       warnings.push(`${pkg.dir}/package.json: ignored, same name as ${kept.dir}/package.json: ${pkg.name}`);
@@ -135,6 +144,13 @@ const dropDuplicateNames = (list: Pkg[], warnings: string[]): Pkg[] => {
     }
   }
   return [...byName.values()];
+};
+
+// 大文字小文字は区別し、Unicode の正規化（NFC と NFD）の違いは無視して、名前がディスク上にあるか調べる
+const hasExactName = (entries: Map<string, unknown>, name: string): boolean => {
+  if (entries.has(name)) return true;
+  const normalized = name.normalize('NFC');
+  return [...entries.keys()].some((entry) => entry.normalize('NFC') === normalized);
 };
 
 const timer = () => {
@@ -157,7 +173,7 @@ export const run = async (options: Options): Promise<Result> => {
   checkMoves(
     moves,
     (path) => existsSync(toNative(path)),
-    (path) => fs.entries(dirname(path)).has(basename(path)),
+    (path) => hasExactName(fs.entries(dirname(path)), basename(path)),
   );
   const map = createPathMapper(moves);
   const root = resolve(options.root);
@@ -236,6 +252,19 @@ export const run = async (options: Options): Promise<Result> => {
   if (targets.length === 0) {
     warnings.push('no source files to process; check --tsconfig, --include or the path');
   }
+  const scanned = new Set(targets.map(({ file }) => file));
+  for (const { from } of moves) {
+    const unscanned: string[] = [];
+    walk(fs, from, () => false, (path, name) => {
+      if (SOURCE_FILE.test(name) && !scanned.has(path)) unscanned.push(path);
+    });
+    if (unscanned.length > 0) {
+      warnings.push(
+        `${unscanned.length} source files in ${from} are outside the tsconfig include, so their imports were not updated (use --include): ${unscanned.slice(0, 3).join(', ')}`,
+      );
+    }
+  }
+  const skippedFiles = outputs.reduce((sum, output) => sum + output.skipped, 0);
   clock.lap('read and rewrite');
 
   const configHits: ConfigHit[] = [];
@@ -265,15 +294,21 @@ export const run = async (options: Options): Promise<Result> => {
   }
   clock.lap('config files');
 
+  if (options.apply && options.strict && warnings.length > 0) {
+    throw new Error(
+      `--strict: nothing was changed because of ${warnings.length} warnings:\n${warnings.map((warning) => `  ${warning}`).join('\n')}`,
+    );
+  }
+
   if (options.apply) {
-    let moved = 0;
+    const done: string[] = [];
     let written = 0;
     try {
       const deepestFirst = [...moves].sort((a, b) => b.from.length - a.from.length);
       for (const { from, to } of deepestFirst) {
         mkdirSync(toNative(dirname(to)), { recursive: true });
         renameSync(toNative(from), toNative(to));
-        moved++;
+        done.push(`${from} -> ${to}`);
       }
       await forEachLimit(edits, READ_CONCURRENCY, async ({ newPath, text }) => {
         await writeText(newPath, text);
@@ -281,8 +316,9 @@ export const run = async (options: Options): Promise<Result> => {
       });
     } catch (error) {
       const reason = error instanceof Error ? error.message : String(error);
+      if (done.length === 0 && written === 0) throw new Error(`${reason}\nNothing was changed.`);
       throw new Error(
-        `${reason}\nStopped part way: moved ${moved} of ${moves.length} paths, wrote ${written} of ${edits.length} files. Imports may be only partly updated.`,
+        `${reason}\nStopped part way: wrote ${written} of ${edits.length} files. Moved already:\n${done.map((line) => `  ${line}`).join('\n') || '  (none)'}\nImports may be only partly updated.`,
       );
     }
   }
@@ -294,6 +330,7 @@ export const run = async (options: Options): Promise<Result> => {
   warnings.sort();
   return {
     scannedFiles: targets.length,
+    skippedFiles,
     changedFiles: edits.length,
     changes,
     suspects,

@@ -35,7 +35,7 @@ Options:
   --verbose                 list every changed line
   --timing                  show the time of each stage
   --json                    print the result as JSON
-  --strict                  exit with 1 when there are warnings (skipped files, unresolved imports)
+  --strict                  with warnings (skipped files, unresolved imports): change nothing and exit with 1
   -h, --help                show this help`;
 
 const parse = () =>
@@ -130,6 +130,7 @@ const options: Options = {
   workers,
   detail: dryRun || (values.verbose ?? false),
   apply: !dryRun,
+  strict: values.strict ?? false,
 };
 
 const cwd = resolveInput('.');
@@ -177,10 +178,14 @@ try {
   }
 
   const summary = `${plural(result.changedFiles, 'file')}, ${plural(result.changes.length, 'import')}`;
+  const skipped =
+    result.skippedFiles > 0
+      ? ` ${plural(result.skippedFiles, 'file')} skipped; imports in them were NOT updated.`
+      : '';
   print(
     options.apply
-      ? `\nDone: ${summary} changed (${plural(result.scannedFiles, 'file')} scanned).`
-      : `\nDry run: ${summary} would change (${plural(result.scannedFiles, 'file')} scanned). Nothing was written.`,
+      ? `\nDone: ${summary} changed (${plural(result.scannedFiles, 'file')} scanned).${skipped}`
+      : `\nDry run: ${summary} would change (${plural(result.scannedFiles, 'file')} scanned). Nothing was written.${skipped}`,
   );
   if (values.timing) {
     for (const [label, ms] of Object.entries(result.timings)) {

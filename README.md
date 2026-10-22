@@ -59,7 +59,7 @@ npx movemod src
 - Relative paths, tsconfig `paths` and `baseUrl` aliases, and workspace package names (`@scope/pkg/src/x`).
 - Paths in `package.json` and `tsconfig*.json`.
 
-Files that are not valid UTF-8 or have syntax errors are skipped with a `warning:` line. Add `--strict` to exit with 1 on warnings.
+Files that are not valid UTF-8 or have syntax errors are skipped with a `warning:` line. With `--strict`, warnings stop the run before anything is changed and exit with 1.
 
 ## Import style
 
@@ -104,4 +104,4 @@ Targets: `darwin-arm64`, `darwin-x64`, `linux-arm64`, `linux-x64`, `linux-arm64-
 | `--verbose` | List every changed line |
 | `--timing` | Show the time of each stage |
 | `--json` | Print the result as JSON |
-| `--strict` | Exit with 1 when there are warnings (skipped files, unresolved imports) |
+| `--strict` | With warnings (skipped files, unresolved imports): change nothing and exit with 1 |

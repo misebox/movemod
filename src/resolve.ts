@@ -62,12 +62,9 @@ export const resolvePath = (fs: FsIndex, base: string): Resolved | undefined => 
   return undefined;
 };
 
-// tsconfig の paths で書かれた指定子を解決する
-export const resolveAlias = (
-  fs: FsIndex,
-  aliases: Alias[],
-  specifier: string,
-): Resolved | undefined => {
+// tsconfig の paths で書かれた指定子が指しうるパス（拡張子や index を補う前）。alias の順に並べる
+export const aliasCandidates = (aliases: Alias[], specifier: string): string[] => {
+  const bases: string[] = [];
   for (const alias of aliases) {
     const matched = alias.wildcard
       ? specifier.length >= alias.prefix.length + alias.suffix.length &&
@@ -80,12 +77,21 @@ export const resolveAlias = (
       specifier.length - alias.suffix.length,
     );
     for (const target of alias.targets) {
-      const base = target.wildcard
-        ? target.prefix + captured + target.suffix
-        : target.prefix;
-      const resolved = resolvePath(fs, base);
-      if (resolved) return resolved;
+      bases.push(target.wildcard ? target.prefix + captured + target.suffix : target.prefix);
     }
+  }
+  return bases;
+};
+
+// tsconfig の paths で書かれた指定子を解決する
+export const resolveAlias = (
+  fs: FsIndex,
+  aliases: Alias[],
+  specifier: string,
+): Resolved | undefined => {
+  for (const base of aliasCandidates(aliases, specifier)) {
+    const resolved = resolvePath(fs, base);
+    if (resolved) return resolved;
   }
   return undefined;
 };

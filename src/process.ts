@@ -28,6 +28,8 @@ export type ChunkOutput = {
   changes: Change[];
   suspects: Suspect[];
   warnings: string[];
+  // 読めない・解析できないなどで、書き換えなかったファイルの数
+  skipped: number;
 };
 
 const STRICT_UTF8 = new TextDecoder('utf-8', { fatal: true });
@@ -63,16 +65,18 @@ export const processChunk = (input: ChunkInput, fs: FsIndex = createFsIndex()): 
     detail: input.detail,
   });
 
-  const output: ChunkOutput = { edits: [], changes: [], suspects: [], warnings: [] };
+  const output: ChunkOutput = { edits: [], changes: [], suspects: [], warnings: [], skipped: 0 };
   for (const { file, index } of input.targets) {
     try {
       const source = readUtf8(file);
       if (source === undefined) {
         output.warnings.push(`${file}: skipped, not valid UTF-8`);
+        output.skipped++;
         continue;
       }
       const result = rewrite(file, source, contexts[index]);
       if (!result) continue;
+      if (result.skipped) output.skipped++;
       output.changes.push(...result.changes);
       output.suspects.push(...result.suspects);
       output.warnings.push(...result.warnings);
@@ -81,6 +85,7 @@ export const processChunk = (input: ChunkInput, fs: FsIndex = createFsIndex()): 
       }
     } catch (error) {
       output.warnings.push(`${file}: skipped, ${error instanceof Error ? error.message : error}`);
+      output.skipped++;
     }
   }
   output.warnings.push(...fs.problems());

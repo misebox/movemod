@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from 'bun:test';
-import { chmodSync, existsSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { run } from '../src/engine.ts';
 import { base, cleanFixtures, fixture, read, TSCONFIG } from './fixture.ts';
@@ -111,16 +111,18 @@ describe('読めないファイル', () => {
     expect(result.warnings.some((w) => w.includes('legacy.ts') && w.includes('UTF-8'))).toBe(true);
   });
 
-  test('解決できない alias の import は、移動があるときに警告する', async () => {
+  test('解決できない alias の import は、行き先が移動するパスの中にあるときだけ警告する', async () => {
     const root = fixture({
       ...files,
-      'src/gone.ts': "import { x } from '@/missing';\nexport const g = x;\n",
+      'src/lib/util.ts': 'export const u = 1;\n',
+      'src/gone.ts': "import { x } from '@/lib/missing';\nimport { y } from '@/elsewhere';\n",
     });
-    const move = { from: join(root, 'src/a.ts'), to: join(root, 'src/b.ts') };
 
-    const result = await run(base(root, { moves: [move] }));
+    const result = await run(base(root, { moves: [{ from: join(root, 'src/lib'), to: join(root, 'src/shared') }] }));
 
-    expect(result.warnings.some((w) => w.includes('cannot resolve: @/missing'))).toBe(true);
+    expect(result.warnings.filter((w) => w.includes('cannot resolve'))).toEqual([
+      `${join(root, 'src/gone.ts')}: cannot resolve: @/lib/missing`,
+    ]);
   });
 
   test('対象のファイルが 1 つも無いと、警告する', async () => {
@@ -164,7 +166,7 @@ describe('書き込み', () => {
 
     await run(base(root, { moves: [move] }));
 
-    expect(existsSync(join(root, 'src/user.ts.movemod-tmp'))).toBe(false);
+    expect(readdirSync(join(root, 'src')).filter((name) => name.endsWith('.movemod-tmp'))).toEqual([]);
   });
 
   test('日本語の文字列より後ろの複数の import も、位置がずれない', async () => {

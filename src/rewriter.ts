@@ -1,7 +1,7 @@
 import { dirname, relative, resolve } from 'node:path/posix';
 import type { FsIndex } from './fsIndex.ts';
 import type { Packages } from './packages.ts';
-import { resolveAlias, resolvePath, specifierTarget, type Resolved } from './resolve.ts';
+import { aliasCandidates, resolveAlias, resolvePath, specifierTarget, type Resolved } from './resolve.ts';
 import { buildAstTrigger, collectSpecifiers } from './specifiers.ts';
 import { chooseSpecifier, isRelative, relativeSpecifier, type Origin, type Style } from './style.ts';
 import { findSuspects, type Suspect } from './suspects.ts';
@@ -18,6 +18,8 @@ export type Change = {
 };
 
 export type FileResult = {
+  // 構文エラーなどで、このファイルは書き換えなかった
+  skipped?: boolean;
   text?: string;
   changes: Change[];
   suspects: Suspect[];
@@ -141,18 +143,28 @@ export const createRewriter = (options: RewriterOptions) => {
     return target;
   };
 
-  const isAliasOrPackage = (project: ProjectContext, text: string) =>
-    project.aliases.some((alias) => alias.prefix !== '' && text.startsWith(alias.prefix)) ||
-    packages.names.some((name) => text.startsWith(`${name}/`));
+  // 解決できなかった alias やパッケージ名の指定子のうち、行き先が移動するパスの中にあるもの。
+  // exports で公開されたサブパスや、まだ無い生成物のように、移動と関係ないものは警告しない
+  const pointsIntoMovedPath = (project: ProjectContext, text: string) => {
+    const candidates = [
+      ...aliasCandidates([...project.aliases, ...project.implicitAliases], text),
+      ...packageSubpath(text),
+    ];
+    return candidates.some((base) => map(base) !== base);
+  };
 
-  // ワークスペース内のパッケージ名で書かれた、パッケージの中身への指定子
-  const resolvePackage = (text: string): Resolved | undefined => {
+  // ワークスペース内のパッケージ名で書かれた、パッケージの中身へのパス
+  const packageSubpath = (text: string): string[] => {
     const parts = text.split('/');
     const nameLength = text.startsWith('@') ? 2 : 1;
-    if (parts.length <= nameLength) return undefined;
+    if (parts.length <= nameLength) return [];
     const pkg = packages.byName.get(parts.slice(0, nameLength).join('/'));
-    if (!pkg) return undefined;
-    return resolvePath(fs, `${pkg.dir}/${parts.slice(nameLength).join('/')}`);
+    return pkg ? [`${pkg.dir}/${parts.slice(nameLength).join('/')}`] : [];
+  };
+
+  const resolvePackage = (text: string): Resolved | undefined => {
+    const [base] = packageSubpath(text);
+    return base === undefined ? undefined : resolvePath(fs, base);
   };
 
   // alias にもパッケージ名にもせず、元の書き方（./ を付けるかどうか）を保って相対パスにする
@@ -214,6 +226,7 @@ export const createRewriter = (options: RewriterOptions) => {
       );
       if (syntaxError) {
         result.warnings.push(`${file}: skipped, syntax error: ${syntaxError}`);
+        result.skipped = true;
         return result;
       }
 
@@ -227,7 +240,7 @@ export const createRewriter = (options: RewriterOptions) => {
             if (fileMoved || map(base) !== base) {
               result.warnings.push(`${file}: cannot resolve: ${specifier.text}`);
             }
-          } else if (!realign && isAliasOrPackage(project, specifier.text)) {
+          } else if (!realign && pointsIntoMovedPath(project, specifier.text)) {
             result.warnings.push(`${file}: cannot resolve: ${specifier.text}`);
           }
           continue;
