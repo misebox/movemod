@@ -6,8 +6,8 @@ import { base, cleanFixtures, fixture, read, TSCONFIG } from './fixture.ts';
 
 afterEach(cleanFixtures);
 
-describe('マルチバイトのフォルダ名とファイル名', () => {
-  test('日本語のフォルダを動かすと、import も日本語のまま直る', async () => {
+describe('multibyte folder and file names', () => {
+  test('moving a Japanese-named folder updates imports and keeps the Japanese names', async () => {
     const root = fixture({
       'tsconfig.json': TSCONFIG,
       'src/日本語/部品.ts': 'export const 部品 = 1;\n',

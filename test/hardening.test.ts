@@ -13,8 +13,8 @@ const move = (root: string, from: string, to: string) => ({
   to: join(root, to),
 });
 
-describe('設定ファイル自身を動かす', () => {
-  test('ファイルだけを動かしても、相対パスの値は新しい位置から見たパスになる', async () => {
+describe('moving a config file itself', () => {
+  test('relative path values are rewritten for the new location even when only the file moves', async () => {
     const root = fixture({
       'tsconfig.json': JSON.stringify({ include: ['src'] }),
       'tsconfig.build.json': JSON.stringify({ extends: './tsconfig.base.json', include: ['./src'] }),
@@ -30,7 +30,7 @@ describe('設定ファイル自身を動かす', () => {
     });
   });
 
-  test('../ で始まる値が、./ のない名前にならない', async () => {
+  test('values starting with ../ never become names without ./', async () => {
     const root = fixture({
       'tsconfig.json': JSON.stringify({ include: ['packages'] }),
       'tsconfig.base.json': '{}\n',
@@ -42,7 +42,7 @@ describe('設定ファイル自身を動かす', () => {
     expect(JSON.parse(read(root, 'packages/app/tsconfig.build.json')).extends).toBe('./tsconfig.base.json');
   });
 
-  test('paths のブロックの中のコメントに } があっても、範囲が途中で終わらない', async () => {
+  test('a } in a comment inside the paths block does not end the range early', async () => {
     const root = fixture({
       'tsconfig.json':
         '{ "compilerOptions": { "baseUrl": "src", "paths": {\n // "}"\n "@x/*": ["{a,b}/*"],\n "@lib/*": ["lib/*"] } }, "include": ["src"] }',
@@ -57,8 +57,8 @@ describe('設定ファイル自身を動かす', () => {
   });
 });
 
-describe('書き込み', () => {
-  test.skipIf(process.platform === 'win32')('シンボリックリンクはリンクのまま、リンク先が書き換わる', async () => {
+describe('writes', () => {
+  test.skipIf(process.platform === 'win32')('a symlink stays a symlink and its target is rewritten', async () => {
     const root = fixture({
       'tsconfig.json': TSCONFIG,
       'src/a.ts': 'export const a = 1;\n',
@@ -72,7 +72,7 @@ describe('書き込み', () => {
     expect(read(root, 'src/real.ts')).toBe("import { a } from './b';\nexport const r = a;\n");
   });
 
-  test('U+FFFD をそのまま含む正しい UTF-8 のファイルは、書き換える', async () => {
+  test('rewrites valid UTF-8 files that contain U+FFFD', async () => {
     const root = fixture({
       'tsconfig.json': TSCONFIG,
       'src/a.ts': 'export const a = 1;\n',
@@ -85,7 +85,7 @@ describe('書き込み', () => {
     expect(result.warnings).toEqual([]);
   });
 
-  test('forEachLimit は、失敗したら新しい項目を始めず、失敗をまとめて投げる', async () => {
+  test('forEachLimit starts no new items after a failure and throws the failures together', async () => {
     const started: number[] = [];
     const fail = async (item: number) => {
       started.push(item);
@@ -99,10 +99,10 @@ describe('書き込み', () => {
   });
 });
 
-describe('大文字小文字の確認（ファイルシステムに依らない）', () => {
+describe('case checks (filesystem independent)', () => {
   const exists = () => true;
 
-  test('親フォルダの綴りが違う移動元は止める', () => {
+  test('stops when the source parent folder has different case', () => {
     const isExactCase = (path: string) => !path.includes('/Src');
 
     expect(() => checkMoves([{ from: '/r/Src/foo.ts', to: '/r/src/bar.ts' }], exists, isExactCase)).toThrow(
@@ -110,7 +110,7 @@ describe('大文字小文字の確認（ファイルシステムに依らない�
     );
   });
 
-  test('大文字小文字だけの移動は許し、別のファイルへの上書きは止める', () => {
+  test('allows case-only moves and stops overwrites of other files', () => {
     const isExactCase = (path: string) => path !== '/r/Button.ts';
 
     expect(() => checkMoves([{ from: '/r/button.ts', to: '/r/Button.ts' }], exists, isExactCase)).not.toThrow();
@@ -120,8 +120,8 @@ describe('大文字小文字の確認（ファイルシステムに依らない�
   });
 });
 
-describe('警告', () => {
-  test('スキップしたファイルの数が結果に出る', async () => {
+describe('warnings', () => {
+  test('the result includes the number of skipped files', async () => {
     const root = fixture({
       'tsconfig.json': TSCONFIG,
       'src/a.ts': 'export const a = 1;\n',
@@ -133,7 +133,7 @@ describe('警告', () => {
     expect(result.skippedFiles).toBe(1);
   });
 
-  test('tsconfig の対象外にある移動元のファイルは、警告する', async () => {
+  test('warns about a source file outside the tsconfig scope', async () => {
     const root = fixture({
       'tsconfig.json': TSCONFIG,
       'scripts/x.js': 'module.exports = 1;\n',
@@ -144,7 +144,7 @@ describe('警告', () => {
     expect(result.warnings.some((w) => w.includes('outside the tsconfig include'))).toBe(true);
   });
 
-  test('exports で公開されたパッケージのサブパスは、警告しない', async () => {
+  test('does not warn about package subpaths exposed by exports', async () => {
     const root = fixture({
       'tsconfig.json': JSON.stringify({ include: ['packages', 'src'] }),
       'packages/ui/package.json': JSON.stringify({ name: '@acme/ui', exports: { './button': './src/button/index.tsx' } }),
@@ -158,7 +158,7 @@ describe('警告', () => {
     expect(result.warnings.filter((w) => w.includes('cannot resolve'))).toEqual([]);
   });
 
-  test('同じ名前のパッケージは、深さが浅いほうを使う', async () => {
+  test('for packages with the same name, uses the shallower one', async () => {
     const root = fixture({
       'tsconfig.json': JSON.stringify({ include: ['packages', 'apps', 'a'] }),
       'packages/x/package.json': JSON.stringify({ name: '@x/x' }),
@@ -175,7 +175,7 @@ describe('警告', () => {
 });
 
 describe('--strict', () => {
-  test('警告があると、何も変えずに止まる', async () => {
+  test('stops without changing anything when there are warnings', async () => {
     const root = fixture({
       'tsconfig.json': TSCONFIG,
       'src/a.ts': 'export const a = 1;\n',
@@ -190,12 +190,12 @@ describe('--strict', () => {
   });
 });
 
-describe('コマンドライン', () => {
+describe('command line', () => {
   const cli = join(import.meta.dirname, '..', 'src', 'cli.ts');
   const execute = (root: string, args: string[]) =>
     Bun.spawnSync([process.execPath, cli, ...args], { cwd: root });
 
-  test('--strict は警告があると終了コード 1、無いと 0', () => {
+  test('--strict exits 1 with warnings and 0 without', () => {
     const broken = fixture({
       'tsconfig.json': TSCONFIG,
       'src/a.ts': 'export const a = 1;\n',
@@ -208,7 +208,7 @@ describe('コマンドライン', () => {
     expect(execute(clean, ['src/a.ts', 'src/b.ts', '--dry-run', '--strict']).exitCode).toBe(0);
   });
 
-  test('--workers に不正な値を渡すと、何も変えずに終了コード 1', () => {
+  test('--workers with an invalid value exits 1 without changing anything', () => {
     const root = fixture({ 'tsconfig.json': TSCONFIG, 'src/a.ts': 'export const a = 1;\n' });
 
     const result = execute(root, ['src/a.ts', 'src/b.ts', '--workers', 'abc']);
@@ -218,7 +218,7 @@ describe('コマンドライン', () => {
     expect(readFileSync(join(root, 'src/a.ts'), 'utf8')).toBe('export const a = 1;\n');
   });
 
-  test('スキップしたファイルは、最後の行に数が出る', () => {
+  test('the last line shows the number of skipped files', () => {
     const root = fixture({
       'tsconfig.json': TSCONFIG,
       'src/a.ts': 'export const a = 1;\n',

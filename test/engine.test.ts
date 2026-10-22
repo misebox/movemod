@@ -7,7 +7,7 @@ import { base, cleanFixtures, fixture, read, TSCONFIG } from './fixture.ts';
 afterEach(cleanFixtures);
 
 describe('mv', () => {
-  test('ファイルを動かすと、動かしたファイルと参照元の相対 import が直る', async () => {
+  test('moving a file updates relative imports in it and in its referrers', async () => {
     const root = fixture({
       'tsconfig.json': TSCONFIG,
       'src/a/x.ts': "import { y } from '../b/y';\nimport z from './z';\nexport const x = y + z;\n",
@@ -23,7 +23,7 @@ describe('mv', () => {
     expect(read(root, 'src/c/user.ts')).toContain("'../d/e/x'");
   });
 
-  test('tsconfig が無い JS プロジェクトでも動く', async () => {
+  test('works in a JS project without tsconfig', async () => {
     const root = fixture({
       'index.js': "const a = require('./lib/a');\nmodule.exports = a;\n",
       'lib/a.js': 'module.exports = 1;\n',
@@ -33,7 +33,7 @@ describe('mv', () => {
     expect(read(root, 'index.js')).toContain("require('./src/lib/a')");
   });
 
-  test('フォルダを動かすと、中の相対 import は変わらず、外からの import だけ直る', async () => {
+  test('moving a folder keeps inner relative imports and updates only imports from outside', async () => {
     const root = fixture({
       'tsconfig.json': TSCONFIG,
       'src/lib/a.ts': "import { b } from './b';\nexport const a = b;\n",
@@ -47,7 +47,7 @@ describe('mv', () => {
     expect(result.changes).toHaveLength(1);
   });
 
-  test('alias の import は、移動先が alias の下なら alias のまま直る', async () => {
+  test('alias imports stay aliases when the destination is under the alias', async () => {
     const root = fixture({
       'tsconfig.json': TSCONFIG,
       'src/lib/util.ts': 'export const u = 1;\n',
@@ -58,7 +58,7 @@ describe('mv', () => {
     expect(read(root, 'src/deep/er/user.ts')).toContain("'@/shared/util'");
   });
 
-  test('require / import() / vi.mock / require.resolve も直る', async () => {
+  test('also updates require, import(), vi.mock and require.resolve', async () => {
     const root = fixture({
       'tsconfig.json': TSCONFIG,
       'src/m.ts': 'export const m = 1;\n',
@@ -85,7 +85,7 @@ describe('mv', () => {
     );
   });
 
-  test('dry-run では何も変更しない', async () => {
+  test('dry-run changes nothing', async () => {
     const root = fixture({
       'tsconfig.json': TSCONFIG,
       'src/m.ts': 'export const m = 1;\n',
@@ -98,7 +98,7 @@ describe('mv', () => {
     expect(read(root, 'src/use.ts')).toBe("import { m } from './m';\n");
   });
 
-  test('import 以外の文字列と設定ファイルは、要確認として報告する', async () => {
+  test('reports non-import strings and config files for review', async () => {
     const root = fixture({
       'tsconfig.json': TSCONFIG,
       'src/data/a.json': '{}\n',
@@ -112,7 +112,7 @@ describe('mv', () => {
     expect(result.configHits.map((h) => h.file.endsWith('ci.yml'))).toEqual([true]);
   });
 
-  test('tsconfig と package.json のパスは書き換える', async () => {
+  test('rewrites paths in tsconfig and package.json', async () => {
     const root = fixture({
       'tsconfig.json': JSON.stringify({ include: ['src', 'tests/**/*'] }),
       'package.json': JSON.stringify({ name: 'x', main: './src/index.ts' }),
@@ -126,7 +126,7 @@ describe('mv', () => {
 });
 
 describe('realign', () => {
-  test('パスを指定すると、その中のファイルだけ書き直す', async () => {
+  test('given a path, rewrites only files inside it', async () => {
     const root = fixture({
       'tsconfig.json': TSCONFIG,
       'src/lib/util.ts': 'export const u = 1;\n',
@@ -139,7 +139,7 @@ describe('realign', () => {
     expect(read(root, 'src/a/b/c/two.ts')).toContain("'../../../lib/util'");
   });
 
-  test('../ が深い import は alias に、./ は相対のままになる', async () => {
+  test('deep ../ imports become aliases and ./ imports stay relative', async () => {
     const root = fixture({
       'tsconfig.json': TSCONFIG,
       'src/lib/util.ts': 'export const u = 1;\n',

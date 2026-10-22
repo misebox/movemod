@@ -12,8 +12,8 @@ const files = {
   'src/user.ts': "import { a } from './a';\nexport const u = a;\n",
 };
 
-describe('移動の検証', () => {
-  test('移動先が既にあると、何も変えずに止まる', async () => {
+describe('move validation', () => {
+  test('stops without changing anything when the destination exists', async () => {
     const root = fixture({ ...files, 'src/b.ts': 'export const b = 1;\n' });
     const move = { from: join(root, 'src/a.ts'), to: join(root, 'src/b.ts') };
 
@@ -23,7 +23,7 @@ describe('移動の検証', () => {
     expect(read(root, 'src/user.ts')).toContain("'./a'");
   });
 
-  test('移動先が別の移動元の中だと、何も変えずに止まる', async () => {
+  test('stops without changing anything when the destination is inside another source', async () => {
     const root = fixture({ ...files, 'src/dir/x.ts': 'export {};\n' });
     const moves = [
       { from: join(root, 'src/dir'), to: join(root, 'src/moved') },
@@ -35,7 +35,7 @@ describe('移動の検証', () => {
     expect(existsSync(join(root, 'src/dir/x.ts'))).toBe(true);
   });
 
-  test('移動元が無いと止まる', async () => {
+  test('stops when the source is missing', async () => {
     const root = fixture(files);
     const move = { from: join(root, 'src/none.ts'), to: join(root, 'src/x.ts') };
 
@@ -44,7 +44,7 @@ describe('移動の検証', () => {
 });
 
 describe('--workers', () => {
-  test('不正な値は、移動する前に拒否する', async () => {
+  test('rejects invalid values before moving', async () => {
     const root = fixture(files);
     const move = { from: join(root, 'src/a.ts'), to: join(root, 'src/b.ts') };
 
@@ -54,7 +54,7 @@ describe('--workers', () => {
     expect(existsSync(join(root, 'src/a.ts'))).toBe(true);
   });
 
-  test('Worker で処理しても、結果は 1 つで処理したときと同じになる', async () => {
+  test('gives the same result with workers as with a single thread', async () => {
     const make = () =>
       fixture({
         'tsconfig.json': TSCONFIG,
@@ -83,8 +83,8 @@ describe('--workers', () => {
   });
 });
 
-describe('読めないファイル', () => {
-  test('構文エラーのファイルは書き換えず、原因を警告する', async () => {
+describe('unreadable files', () => {
+  test('does not rewrite files with syntax errors and warns with the cause', async () => {
     const broken = "import { a } from './a';\nconst = ;\n";
     const root = fixture({ ...files, 'src/broken.ts': broken });
     const move = { from: join(root, 'src/a.ts'), to: join(root, 'src/b.ts') };
@@ -96,7 +96,7 @@ describe('読めないファイル', () => {
     expect(read(root, 'src/user.ts')).toContain("'./b'");
   });
 
-  test('UTF-8 でないファイルは書き換えず、警告する', async () => {
+  test('does not rewrite non-UTF-8 files and warns', async () => {
     const root = fixture(files);
     const legacy = Buffer.concat([
       Buffer.from("import { a } from './a';\n// "),
@@ -111,7 +111,7 @@ describe('読めないファイル', () => {
     expect(result.warnings.some((w) => w.includes('legacy.ts') && w.includes('UTF-8'))).toBe(true);
   });
 
-  test('解決できない alias の import は、行き先が移動するパスの中にあるときだけ警告する', async () => {
+  test('warns about an unresolvable alias import only when it points inside a moving path', async () => {
     const root = fixture({
       ...files,
       'src/lib/util.ts': 'export const u = 1;\n',
@@ -125,7 +125,7 @@ describe('読めないファイル', () => {
     ]);
   });
 
-  test('対象のファイルが 1 つも無いと、警告する', async () => {
+  test('warns when there are no target files', async () => {
     const root = fixture({ 'tsconfig.json': TSCONFIG });
 
     const result = await run(base(root));
@@ -133,7 +133,7 @@ describe('読めないファイル', () => {
     expect(result.warnings.some((w) => w.includes('no source files'))).toBe(true);
   });
 
-  test('壊れた package.json は、警告して飛ばす', async () => {
+  test('warns about a broken package.json and skips it', async () => {
     const root = fixture({ ...files, 'packages/p/package.json': '{ "name": ' });
     const move = { from: join(root, 'src/a.ts'), to: join(root, 'src/b.ts') };
 
@@ -143,8 +143,8 @@ describe('読めないファイル', () => {
   });
 });
 
-describe('書き込み', () => {
-  test('実行権限と CRLF を保つ', async () => {
+describe('writes', () => {
+  test('keeps the executable bit and CRLF', async () => {
     const root = fixture({
       ...files,
       'src/cli.ts': "import { a } from './a';\r\nexport const c = a;\r\n",
@@ -160,7 +160,7 @@ describe('書き込み', () => {
     }
   });
 
-  test('一時ファイルを残さない', async () => {
+  test('leaves no temp files', async () => {
     const root = fixture(files);
     const move = { from: join(root, 'src/a.ts'), to: join(root, 'src/b.ts') };
 
@@ -169,7 +169,7 @@ describe('書き込み', () => {
     expect(readdirSync(join(root, 'src')).filter((name) => name.endsWith('.movemod-tmp'))).toEqual([]);
   });
 
-  test('日本語の文字列より後ろの複数の import も、位置がずれない', async () => {
+  test('imports after a Japanese string keep correct positions', async () => {
     const root = fixture({
       ...files,
       'src/c.ts': 'export const c = 1;\n',
@@ -190,7 +190,7 @@ describe('書き込み', () => {
 });
 
 describe('dry-run', () => {
-  test('フォルダの移動と設定ファイルの書き換えも、何も実行しない', async () => {
+  test('does nothing for folder moves and config rewrites either', async () => {
     const root = fixture({
       'tsconfig.json': JSON.stringify({ include: ['src'] }),
       'package.json': JSON.stringify({ name: 'x', main: './src/index.ts' }),

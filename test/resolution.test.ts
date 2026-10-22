@@ -11,8 +11,8 @@ const move = (root: string, from: string, to: string) => ({
   to: join(root, to),
 });
 
-describe('どのパッケージにも属さないファイル', () => {
-  test('パッケージ名で書かれた import は、パッケージ名のまま直る', async () => {
+describe('files outside any package', () => {
+  test('keeps package-name imports as package names', async () => {
     const root = fixture({
       'tsconfig.json': JSON.stringify({ include: ['packages', 'scripts'] }),
       'packages/lib/package.json': JSON.stringify({ name: '@a/lib' }),
@@ -26,8 +26,8 @@ describe('どのパッケージにも属さないファイル', () => {
   });
 });
 
-describe('大文字小文字だけの移動', () => {
-  test('button.ts を Button.ts に変えられ、import も直る', async () => {
+describe('case-only moves', () => {
+  test('renames button.ts to Button.ts and updates imports', async () => {
     const root = fixture({
       'tsconfig.json': JSON.stringify({ include: ['src'] }),
       'src/button.ts': 'export const b = 1;\n',
@@ -40,7 +40,7 @@ describe('大文字小文字だけの移動', () => {
     expect(read(root, 'src/user.ts')).toContain("'./Button'");
   });
 
-  test('ディスク上の綴りと大文字小文字が違う移動元は、止める', async () => {
+  test('stops when the source case differs from the case on disk', async () => {
     const root = fixture({
       'tsconfig.json': JSON.stringify({ include: ['src'] }),
       'src/button.ts': 'export const b = 1;\n',
@@ -53,8 +53,8 @@ describe('大文字小文字だけの移動', () => {
   });
 });
 
-describe('設定ファイルが動くとき', () => {
-  test('外側を指す extends は、新しい位置から見たパスに直る', async () => {
+describe('when a config file moves', () => {
+  test('rewrites an outward extends relative to the new location', async () => {
     const root = fixture({
       'tsconfig.json': JSON.stringify({ include: ['packages', 'apps'] }),
       'tsconfig.base.json': '{}\n',
@@ -71,7 +71,7 @@ describe('設定ファイルが動くとき', () => {
 });
 
 describe('baseUrl', () => {
-  test('paths の値は baseUrl 基準で読み、移動に合わせて直る', async () => {
+  test('reads paths values from baseUrl and updates them on move', async () => {
     const root = fixture({
       'tsconfig.json': JSON.stringify({
         compilerOptions: { baseUrl: 'src', paths: { '@lib/*': ['lib/*'] } },
@@ -87,7 +87,7 @@ describe('baseUrl', () => {
     });
   });
 
-  test('baseUrl だけの設定でも、components/Button のような import が直る', async () => {
+  test('updates imports like components/Button with only baseUrl set', async () => {
     const root = fixture({
       'tsconfig.json': JSON.stringify({ compilerOptions: { baseUrl: 'src' }, include: ['src'] }),
       'src/components/Button.ts': 'export const B = 1;\n',
@@ -99,7 +99,7 @@ describe('baseUrl', () => {
     expect(read(root, 'src/app.ts')).toContain("'ui/Button'");
   });
 
-  test('baseUrl の指定は、相対パスの import を baseUrl 形式に変えない', async () => {
+  test('does not turn relative imports into baseUrl form', async () => {
     const root = fixture({
       'tsconfig.json': JSON.stringify({ compilerOptions: { baseUrl: 'src' }, include: ['src'] }),
       'src/lib/util.ts': 'export const u = 1;\n',

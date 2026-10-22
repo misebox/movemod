@@ -6,8 +6,8 @@ import { base, cleanFixtures, fixture, read, TSCONFIG } from './fixture.ts';
 
 afterEach(cleanFixtures);
 
-describe('書き換える書き方', () => {
-  test('type import・export *・reference・new URL も直り、コメントと変数は直さない', async () => {
+describe('rewritten forms', () => {
+  test('also updates type import, export *, reference and new URL, but not comments or variables', async () => {
     const root = fixture({
       'tsconfig.json': TSCONFIG,
       'src/m.ts': 'export type M = number;\nexport const m = 1;\n',
@@ -41,7 +41,7 @@ describe('書き換える書き方', () => {
     );
   });
 
-  test('tsconfig のコメントの中のパスは、書き換えない', async () => {
+  test('does not rewrite paths inside tsconfig comments', async () => {
     const root = fixture({
       'tsconfig.json': '{\n  // "src/legacy"\n  /* "src/legacy" */\n  "include": ["src"]\n}\n',
       'src/index.ts': 'export {};\n',
@@ -55,8 +55,8 @@ describe('書き換える書き方', () => {
   });
 });
 
-describe('--strict の元になる警告', () => {
-  test('警告が無い通常の移動では、warnings が空', async () => {
+describe('warnings that drive --strict', () => {
+  test('warnings is empty for a normal move without warnings', async () => {
     const root = fixture({
       'tsconfig.json': TSCONFIG,
       'src/a.ts': 'export const a = 1;\n',
@@ -69,20 +69,20 @@ describe('--strict の元になる警告', () => {
   });
 });
 
-describe('Windows のパス変換', () => {
+describe('Windows path conversion', () => {
   const windows = createConverters(true);
 
-  test('小文字のドライブ文字は大文字にそろう', () => {
+  test('lowercase drive letters become uppercase', () => {
     expect(windows.fromNative('c:\\a\\b')).toBe('/C:/a/b');
     expect(windows.fromNative('C:\\a\\b\\')).toBe('/C:/a/b/');
   });
 
-  test('ドライブ文字のないパスは、そのまま区切りだけ変わる', () => {
+  test('paths without a drive letter change only the separators', () => {
     expect(windows.fromNative('a\\b')).toBe('a/b');
     expect(windows.toNative('/a/b')).toBe('/a/b');
   });
 
-  test('画面に出す文字列では、引用符の中のパスも戻る', () => {
+  test('in displayed text, paths inside quotes are converted back too', () => {
     expect(windows.toNativeText("warning: '/C:/a/b' (/C:/x)")).toBe("warning: 'C:/a/b' (C:/x)");
   });
 });

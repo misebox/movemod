@@ -12,8 +12,8 @@ const move = (root: string, from: string, to: string) => ({
   to: join(root, to),
 });
 
-describe('移動先の入れ子', () => {
-  test('別の移動先の中に移すと、何も変えずに止まる', async () => {
+describe('nested destinations', () => {
+  test('stops without changing anything when moving into another destination', async () => {
     const root = fixture({
       'tsconfig.json': TSCONFIG,
       'src/legacy/x.ts': 'export const legacy = 1;\n',
@@ -30,7 +30,7 @@ describe('移動先の入れ子', () => {
 });
 
 describe('parseJsonc', () => {
-  test('最後の項目の後ろにコメントがあっても、末尾のカンマを許す', () => {
+  test('allows a trailing comma even with a comment after the last item', () => {
     const text = '{\n  "a": 1,\n  // "b": 2\n}\n';
     const block = '{\n  "a": [1, /* two */\n  ],\n}\n';
 
@@ -39,8 +39,8 @@ describe('parseJsonc', () => {
   });
 });
 
-describe('設定ファイルの書き換え', () => {
-  test('値が変わらないものは、更新したことにしない', async () => {
+describe('config file rewrites', () => {
+  test('does not count unchanged values as updated', async () => {
     const root = fixture({
       'tsconfig.json': JSON.stringify({ include: ['packages'] }),
       'packages/a/package.json': JSON.stringify({ name: 'a', main: 'src/index.ts' }),
@@ -53,8 +53,8 @@ describe('設定ファイルの書き換え', () => {
   });
 });
 
-describe('相対パスでしか書けない書き方', () => {
-  test('new URL と reference は、alias にせず相対パスのまま直る', async () => {
+describe('forms that only accept relative paths', () => {
+  test('new URL and reference stay relative and never become aliases', async () => {
     const root = fixture({
       'tsconfig.json': TSCONFIG,
       'src/lib/w.ts': 'export const w = 1;\n',
@@ -78,7 +78,7 @@ describe('相対パスでしか書けない書き方', () => {
     );
   });
 
-  test('./ を付けない reference のパスも、書き方を保って直る', async () => {
+  test('reference paths without ./ keep their style when updated', async () => {
     const root = fixture({
       'tsconfig.json': TSCONFIG,
       'src/types/env.d.ts': 'declare const env: string;\n',
@@ -91,8 +91,8 @@ describe('相対パスでしか書けない書き方', () => {
   });
 });
 
-describe('tsconfig の外を指す include', () => {
-  test('../shared のファイルも対象になる', async () => {
+describe('include pointing outside the tsconfig', () => {
+  test('files in ../shared are covered too', async () => {
     const root = fixture({
       'app/tsconfig.json': JSON.stringify({ include: ['src', '../shared'] }),
       'shared/util.ts': 'export const u = 1;\n',
@@ -110,8 +110,8 @@ describe('tsconfig の外を指す include', () => {
   });
 });
 
-describe('同じ名前のパッケージ', () => {
-  test('dist の中の写しは使わず、警告する', async () => {
+describe('packages with the same name', () => {
+  test('does not use the copy in dist and warns', async () => {
     const root = fixture({
       'tsconfig.json': JSON.stringify({ include: ['packages', 'apps'] }),
       'packages/a/package.json': JSON.stringify({ name: '@x/a' }),

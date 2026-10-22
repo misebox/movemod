@@ -10,7 +10,7 @@ const move = (root: string, from: string, to: string) => ({
   to: join(root, to),
 });
 
-describe('パッケージをまたぐ移動', () => {
+describe('moves across packages', () => {
   const workspace = (importer: string) => ({
     'tsconfig.json': JSON.stringify({ include: ['packages'] }),
     'packages/a/package.json': JSON.stringify({ name: '@w/a' }),
@@ -21,7 +21,7 @@ describe('パッケージをまたぐ移動', () => {
     'packages/c/src/u.ts': importer,
   });
 
-  test('パッケージ名で書かれた import は、移動先のパッケージ名に変わる', async () => {
+  test('package-name imports change to the destination package name', async () => {
     const root = fixture(workspace("import { x } from '@w/a/src/x';\n"));
 
     await run(base(root, { moves: [move(root, 'packages/a/src/x.ts', 'packages/b/src/x.ts')] }));
@@ -29,7 +29,7 @@ describe('パッケージをまたぐ移動', () => {
     expect(read(root, 'packages/c/src/u.ts')).toBe("import { x } from '@w/b/src/x';\n");
   });
 
-  test('動いたファイルから別のパッケージへの相対 import は、パッケージ名になる', async () => {
+  test('relative imports from a moved file to another package become package names', async () => {
     const root = fixture({
       ...workspace(''),
       'packages/a/src/x.ts': "import { k } from '../../b/src/keep';\nexport const x = k;\n",
@@ -40,7 +40,7 @@ describe('パッケージをまたぐ移動', () => {
     expect(read(root, 'packages/c/src/x.ts')).toBe("import { k } from '@w/b/src/keep';\nexport const x = k;\n");
   });
 
-  test('ルートの package.json は、パッケージとして扱わない', async () => {
+  test('does not treat the root package.json as a package', async () => {
     const root = fixture({
       'package.json': JSON.stringify({ name: 'app' }),
       'tsconfig.json': TSCONFIG,
@@ -69,7 +69,7 @@ describe('--style', () => {
     });
   const moveImporter = (root: string) => move(root, 'src/a/b/c/m.ts', 'src/a/b/d/m.ts');
 
-  test('keep は、alias は alias のまま、相対は相対のまま', async () => {
+  test('keep leaves aliases as aliases and relative paths as relative', async () => {
     const root = fixtureWithImporter();
 
     await run(base(root, { style: 'keep', moves: [moveImporter(root)] }));
@@ -77,7 +77,7 @@ describe('--style', () => {
     expect(read(root, 'src/a/b/d/m.ts')).toBe(importer);
   });
 
-  test('shortest は、短いほうに揃える', async () => {
+  test('shortest picks the shorter form', async () => {
     const root = fixtureWithImporter();
 
     await run(base(root, { style: 'shortest', moves: [moveImporter(root)] }));
@@ -88,8 +88,8 @@ describe('--style', () => {
   });
 });
 
-describe('指定子の書き方', () => {
-  test('.js・index・.json の書き方を保ったまま直る', async () => {
+describe('specifier styles', () => {
+  test('keeps .js, index and .json styles when updating', async () => {
     const root = fixture({
       'tsconfig.json': TSCONFIG,
       'src/x.ts': 'export const x = 1;\n',
@@ -132,7 +132,7 @@ describe('--func', () => {
     'src/use.ts': "loadModule('./m');\nother('./m');\nrequire(`./${'m'}`);\n",
   };
 
-  test('指定した関数の第 1 引数だけを書き換える', async () => {
+  test('rewrites only the first argument of the given function', async () => {
     const root = fixture(files);
 
     await run(base(root, { calls: ['loadModule'], moves: [move(root, 'src/m.ts', 'src/n.ts')] }));
@@ -140,7 +140,7 @@ describe('--func', () => {
     expect(read(root, 'src/use.ts')).toBe("loadModule('./n');\nother('./m');\nrequire(`./${'m'}`);\n");
   });
 
-  test('指定しなければ、その関数は書き換えない', async () => {
+  test('does not rewrite the function unless it is given', async () => {
     const root = fixture(files);
 
     await run(base(root, { moves: [move(root, 'src/m.ts', 'src/n.ts')] }));
@@ -150,7 +150,7 @@ describe('--func', () => {
 });
 
 describe('tsconfig', () => {
-  test('extends 先の alias を使い、exclude したファイルは触らない', async () => {
+  test('uses aliases from extended configs and leaves excluded files alone', async () => {
     const root = fixture({
       'tsconfig.base.json': JSON.stringify({
         compilerOptions: { paths: { '@/*': ['./src/*'] } },
@@ -167,7 +167,7 @@ describe('tsconfig', () => {
     expect(read(root, 'src/skip/b.ts')).toContain("'@/lib/util'");
   });
 
-  test('tsconfig も jsconfig も無いと、警告して全ファイルを対象にする', async () => {
+  test('warns and covers all files when there is no tsconfig or jsconfig', async () => {
     const root = fixture({
       'a.js': 'module.exports = 1;\n',
       'b.js': "module.exports = require('./a');\n",
@@ -179,7 +179,7 @@ describe('tsconfig', () => {
     expect(result.warnings.some((w) => w.includes('not found'))).toBe(true);
   });
 
-  test('extends が循環していると、経路つきで止まる', async () => {
+  test('stops with the cycle path when extends is circular', async () => {
     const root = fixture({
       'tsconfig.json': JSON.stringify({ extends: './other.json' }),
       'other.json': JSON.stringify({ extends: './tsconfig.json' }),
@@ -188,15 +188,15 @@ describe('tsconfig', () => {
     await expect(run(base(root))).rejects.toThrow('circular');
   });
 
-  test('壊れた tsconfig は、ファイル名つきで止まる', async () => {
+  test('stops with the file name when a tsconfig is broken', async () => {
     const root = fixture({ 'tsconfig.json': '{ "include": ' });
 
     await expect(run(base(root))).rejects.toThrow('tsconfig.json: cannot read');
   });
 });
 
-describe('書き方をそろえる範囲', () => {
-  test('フォルダを指定すると、名前が前方一致するだけの別のフォルダは触らない', async () => {
+describe('style normalization scope', () => {
+  test('given a folder, leaves other folders that only share the name prefix', async () => {
     const deep = "import { u } from '../../../lib/util';\nexport const f = u;\n";
     const root = fixture({
       'tsconfig.json': TSCONFIG,
@@ -212,8 +212,8 @@ describe('書き方をそろえる範囲', () => {
   });
 });
 
-describe('要確認の報告', () => {
-  test('動くファイル自身が相対パスの文字列を持つと、this file moves とする', async () => {
+describe('review reports', () => {
+  test('reports this file moves when the moved file holds a relative path string', async () => {
     const root = fixture({
       'tsconfig.json': TSCONFIG,
       'src/data.json': '{}\n',
@@ -228,7 +228,7 @@ describe('要確認の報告', () => {
     ]);
   });
 
-  test('名前が前方一致するだけのパスは、設定ファイルでも書き換えない', async () => {
+  test('does not rewrite paths that only share the name prefix, even in config files', async () => {
     const root = fixture({
       'tsconfig.json': JSON.stringify({ include: ['src'] }),
       'package.json': JSON.stringify({ main: './src/index.ts', types: './src-old/index.d.ts' }),
