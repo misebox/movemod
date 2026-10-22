@@ -1,8 +1,8 @@
 {
   "name": "tsmv",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "type": "module",
-  "description": "TS/JS ファイルの移動や alias の追加に合わせて、import を 1 回のパスで書き換える",
+  "description": "Move TS/JS files and folders, and rewrite the imports that point to them",
   "bin": {
     "tsmv": "dist/cli.js"
   },
