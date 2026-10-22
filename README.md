@@ -3,68 +3,64 @@
 Move TS/JS files and folders, and rewrite the imports that point to them.
 
 ```sh
-npx movemod src/components/Button src/ui/Button
+npx movemod src/components/Button src/components/ui/Button
 ```
 
 Every file that refers to `Button` is updated, whether it uses a relative path, an alias, `vi.mock`, `import()` or `require`. The moved files are updated too. Add `--dry-run` to see the changes without making them:
 
 ```
-$ npx movemod src/components/Button src/ui/Button --dry-run
-root: . (nearest package.json)
-src/components/Button -> src/ui/Button
-
-src/components/Button/index.tsx:1
-- import { cn } from '../../utils/cn';
-+ import { cn } from '@/utils/cn';
+$ npx movemod src/components/Button src/components/ui/Button --dry-run
+src/components/Button -> src/components/ui/Button
 
 src/components/Card.tsx:1
 - import { Button } from './Button';
-+ import { Button } from '@/ui/Button';
++ import { Button } from './ui/Button';
 
 src/pages/home/Hero.test.tsx:1
-- vi.mock('../../components/Button');
-+ vi.mock('@/ui/Button');
-
-src/pages/home/Hero.test.tsx:3
-- const { Button } = await import('../../components/Button');
-+ const { Button } = await import('@/ui/Button');
+- vi.mock('@/components/Button');
++ vi.mock('@/components/ui/Button');
 
 src/pages/home/Hero.tsx:1
 - import { Button } from '@/components/Button';
-+ import { Button } from '@/ui/Button';
++ import { Button } from '@/components/ui/Button';
 
-src/pages/home/index.tsx:1
-- import { Button } from '../../components/Button';
-+ import { Button } from '@/ui/Button';
-
-Check by hand: paths in strings that point to moved files (1)
-  src/scripts/seed.ts:3  readFileSync('src/components/Button/data.json')
-
-Check by hand: moved paths in config files (1)
-  .github/workflows/ci.yml:8  - run: bun test src/components/Button
-
-Dry run: 5 files, 6 imports would change (7 files scanned). Nothing was written.
-```
-
-Paths that movemod cannot rewrite safely are listed under "Check by hand".
-
-Normalize the import style inside a folder:
-
-```sh
-npx movemod src
+Dry run: 3 files, 3 imports would change (7 files scanned). Nothing was written.
 ```
 
 ## What is rewritten
 
-- `import`, `export ... from`, `import()`, `require`, `require.resolve`, `import.meta.resolve`, `new URL(..., import.meta.url)`, `/// <reference path>`, and `vi.mock` / `jest.mock` calls.
-- Relative paths, tsconfig `paths` and `baseUrl` aliases, and workspace package names (`@scope/pkg/src/x`).
-- Paths in `package.json` and `tsconfig*.json`.
+With no options, in TS/JS files (`.ts`, `.tsx`, `.mts`, `.cts`, `.js`, `.jsx`, `.mjs`, `.cjs`):
 
-Files that are not valid UTF-8 or have syntax errors are skipped with a `warning:` line. With `--strict`, warnings stop the run before anything is changed and exit with 1.
+- Every import that points to a moved path, and the imports inside the moved files.
+- Forms: `import`, `export ... from`, `import()`, `require`, `require.resolve`, `import.meta.resolve`, `new URL(..., import.meta.url)`, `/// <reference path>`, and `vi` / `jest` module functions (`mock`, `doMock`, `unmock`, `importActual`, ...).
+- Written as: a relative path, a tsconfig `paths` or `baseUrl` alias, or a workspace package subpath (`@scope/pkg/src/x`).
+
+Not changed, but listed under [Check by hand](#check-by-hand): paths in strings, `package.json`, `tsconfig*.json`, `jsconfig*.json`, and other config files such as CI workflows.
+
+Files that are not valid UTF-8 or have syntax errors are skipped with a `warning:` line.
+
+With options:
+
+- `--config`: also rewrite the paths in `package.json`, `tsconfig*.json` and `jsconfig*.json` (`main`, `exports`, `paths`, `include`, `extends`, ...). A moved config file also gets its own relative paths fixed.
+- `--func <name>`: also rewrite the first argument of your own function, e.g. `loadModule('./foo')`.
+- `--include <path>`: also rewrite files that the tsconfig does not cover.
+
+## Warnings
+
+Any warning stops the run before anything is changed, and the exit code is 1. A dry run shows the warnings and exits with 1 too. Add `--force` to apply anyway.
 
 ## Import style
 
-Use a relative path when `./` works. When `../` is needed, use a tsconfig `paths` alias if it is shorter.
+Imports that movemod rewrites follow one rule:
+
+- Use a relative path when `./` works.
+- When `../` is needed, use a tsconfig `paths` alias if it is shorter.
+
+To apply the rule to a folder without moving anything:
+
+```sh
+npx movemod src
+```
 
 With `"paths": { "@/*": ["./src/*"] }`, in `src/a/b/c/file.ts`:
 
@@ -75,6 +71,21 @@ import { z } from '@/lib/z';      // '../../../lib/z' is longer: alias
 ```
 
 Use `--style keep` to keep each import's current style.
+
+## Check by hand
+
+Moved paths that movemod does not rewrite are listed under "Check by hand":
+
+```
+Check by hand: paths in strings that point to moved files (1)
+  src/scripts/seed.ts:3  readFileSync('src/components/Button/data.json')
+
+Check by hand: moved paths in config files (1)
+  .github/workflows/ci.yml:8  - run: bun test src/components/Button
+```
+
+- Strings: a path inside a string that is not an import. Use `--func <name>` to rewrite the first argument of a function you name.
+- Config files: a moved path in `package.json`, `tsconfig*.json`, `jsconfig*.json` (`--config` rewrites these) or in a file such as a CI workflow (never rewritten).
 
 ## Faster standalone binary
 
@@ -90,32 +101,36 @@ bun run build:bin linux-x64   # for another machine
 
 Targets: `darwin-arm64`, `darwin-x64`, `linux-arm64`, `linux-x64`, `linux-arm64-musl`, `linux-x64-musl` (Alpine), `win32-arm64`, `win32-x64`.
 
-## Project root and tsconfig
+## Project root
 
-Both are detected from the paths you give. Use `--root` and `--tsconfig` only to override.
+Detected from the paths you give. Override with `--root`.
 
-Root: for each path, start at the folder that holds it, go up, and stop at the first folder that matches (priority order):
+From the folder that holds each path, go up and stop at the first match:
 
-1. A folder with `package.json`, `deno.json`, `deno.jsonc` or `jsr.json`
-2. A folder with `.git`, `.hg` or `.svn` (the repository boundary: it never goes above it)
-3. A folder with `tsconfig.json` or `jsconfig.json`
-4. None of the above: the folder that contains all the paths
+1. `package.json`, `deno.json`, `deno.jsonc` or `jsr.json`
+2. `.git`, `.hg` or `.svn` (never goes above it)
+3. `tsconfig.json` or `jsconfig.json`
+4. None: the folder shared by the paths
 
-If the paths give different roots (a move between packages or projects), movemod stops with an error. When a workspaces root (`"workspaces"` in `package.json`, or `pnpm-workspace.yaml`, `turbo.json`, `nx.json`, `lerna.json`, `rush.json`) contains them, the error names it:
-
-```
-They are in the workspaces root /r. Set --root /r to move between packages.
-```
-
-A move inside one package does not look above that package. Sibling packages that import it by name (`@scope/pkg/src/x`) are not updated; pass `--root <monorepo root>` to include them.
-
-It never goes up into the home folder. The chosen root and the rule are printed first:
+It never goes above the home folder. The root is printed first:
 
 ```
 root: apps/web (nearest package.json)
 ```
 
-tsconfig: from each path, go up to the root and use the first folder that has one. In that folder, the order is `tsconfig.json`, `tsconfig.*.json`, `jsconfig.json`. `references` are followed. With none, all files are rewritten and aliases are not resolved.
+Paths in different packages or projects stop with an error. If one workspaces root contains them (`"workspaces"` in `package.json`, `pnpm-workspace.yaml`, `turbo.json`, `nx.json`, `lerna.json` or `rush.json`), the error gives the `--root`:
+
+```
+They are in the workspaces root /r. Set --root /r to move between packages.
+```
+
+A move inside one package does not update sibling packages that import it by name (`@scope/pkg/src/x`). Pass `--root <monorepo root>` to include them.
+
+## tsconfig
+
+Detected from the paths you give. Override with `--tsconfig`.
+
+From each path, go up to the root and use the first folder that has `tsconfig.json`, else `tsconfig.*.json`, else `jsconfig.json`. `references` are followed. With none, all files are rewritten and aliases are not resolved.
 
 ## Options
 
@@ -132,4 +147,5 @@ tsconfig: from each path, go up to the root and use the first folder that has on
 | `--verbose` | List every changed line |
 | `--timing` | Show the time of each stage |
 | `--json` | Print the result as JSON |
-| `--strict` | With warnings (skipped files, unresolved imports): change nothing and exit with 1 |
+| `--config` | Also rewrite paths in `package.json`, `tsconfig*.json` and `jsconfig*.json`. Without it they are only reported |
+| `--force` | Apply even with warnings. Without it, warnings stop the run before any change |

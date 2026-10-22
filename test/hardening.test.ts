@@ -159,7 +159,7 @@ describe('warnings', () => {
     expect(result.warnings.filter((w) => w.includes('cannot resolve'))).toEqual([]);
   });
 
-  test('for packages with the same name, uses the shallower one', async () => {
+  test('for unrelated packages with the same name, uses none of them and warns', async () => {
     const root = fixture({
       'tsconfig.json': JSON.stringify({ include: ['packages', 'apps', 'a'] }),
       'packages/x/package.json': JSON.stringify({ name: '@x/x' }),
@@ -169,14 +169,15 @@ describe('warnings', () => {
       'apps/web/src/u.ts': "import { foo } from '@x/x/src/foo';\nexport const u = foo;\n",
     });
 
-    await run(base(root, { moves: [move(root, 'packages/x/src/foo.ts', 'packages/x/src/bar.ts')] }));
+    const result = await run(base(root, { moves: [move(root, 'packages/x/src/foo.ts', 'packages/x/src/bar.ts')] }));
 
-    expect(read(root, 'apps/web/src/u.ts')).toContain("'@x/x/src/bar'");
+    expect(read(root, 'apps/web/src/u.ts')).toContain("'@x/x/src/foo'");
+    expect(result.warnings).toContain('same package name "@x/x" in a/b/c, packages/x; none of them is used'.replace(/(a\/b\/c|packages\/x)/g, `${root}/$1`));
   });
 });
 
-describe('--strict', () => {
-  test('stops without changing anything when there are warnings', async () => {
+describe('warnings without --force', () => {
+  test('stop the run without changing anything', async () => {
     const root = fixture({
       'tsconfig.json': TSCONFIG,
       'src/a.ts': 'export const a = 1;\n',
@@ -184,10 +185,22 @@ describe('--strict', () => {
     });
 
     await expect(
-      run(base(root, { strict: true, moves: [move(root, 'src/a.ts', 'src/b.ts')] })),
-    ).rejects.toThrow('nothing was changed');
+      run(base(root, { force: false, moves: [move(root, 'src/a.ts', 'src/b.ts')] })),
+    ).rejects.toThrow('add --force to apply anyway');
 
     expect(existsSync(join(root, 'src/a.ts'))).toBe(true);
+  });
+
+  test('--force applies them', async () => {
+    const root = fixture({
+      'tsconfig.json': TSCONFIG,
+      'src/a.ts': 'export const a = 1;\n',
+      'src/broken.ts': "import { a } from './a';\nconst = ;\n",
+    });
+
+    await run(base(root, { force: true, moves: [move(root, 'src/a.ts', 'src/b.ts')] }));
+
+    expect(existsSync(join(root, 'src/b.ts'))).toBe(true);
   });
 });
 
@@ -199,7 +212,7 @@ describe('command line', () => {
     return Bun.spawnSync([process.execPath, cli, ...args], { cwd: root });
   };
 
-  test('--strict exits 1 with warnings and 0 without', () => {
+  test('warnings exit with 1 (also in a dry run); --force exits with 0', () => {
     const broken = fixture({
       'tsconfig.json': TSCONFIG,
       'src/a.ts': 'export const a = 1;\n',
@@ -207,9 +220,11 @@ describe('command line', () => {
     });
     const clean = fixture({ 'tsconfig.json': TSCONFIG, 'src/a.ts': 'export const a = 1;\n' });
 
-    expect(execute(broken, ['src/a.ts', 'src/b.ts', '--dry-run', '--strict']).exitCode).toBe(1);
-    expect(execute(broken, ['src/a.ts', 'src/b.ts', '--dry-run']).exitCode).toBe(0);
-    expect(execute(clean, ['src/a.ts', 'src/b.ts', '--dry-run', '--strict']).exitCode).toBe(0);
+    expect(execute(broken, ['src/a.ts', 'src/b.ts', '--dry-run']).exitCode).toBe(1);
+    expect(execute(broken, ['src/a.ts', 'src/b.ts']).exitCode).toBe(1);
+    expect(existsSync(join(broken, 'src/a.ts'))).toBe(true);
+    expect(execute(broken, ['src/a.ts', 'src/b.ts', '--dry-run', '--force']).exitCode).toBe(0);
+    expect(execute(clean, ['src/a.ts', 'src/b.ts', '--dry-run']).exitCode).toBe(0);
   });
 
   test('--workers with an invalid value exits 1 without changing anything', () => {
@@ -237,6 +252,7 @@ describe('command line', () => {
   test('a move between packages stops with the --root to set, and runs with it', () => {
     const root = fixture({
       'package.json': JSON.stringify({ workspaces: ['packages/*'] }),
+      'tsconfig.json': '{}',
       'packages/a/package.json': JSON.stringify({ name: '@x/a' }),
       'packages/a/src/x.ts': 'export const x = 1;\n',
       'packages/b/package.json': JSON.stringify({ name: '@x/b' }),
@@ -255,6 +271,7 @@ describe('command line', () => {
     const root = fixture({
       'package.json': JSON.stringify({ workspaces: ['packages/*'] }),
       'packages/a/package.json': JSON.stringify({ name: '@x/a' }),
+      'packages/a/tsconfig.json': '{}',
       'packages/a/src/x.ts': 'export const x = 1;\n',
     });
 
@@ -283,6 +300,34 @@ describe('command line', () => {
     const result = execute(root, ['app/src/a/b.ts', '--dry-run']);
 
     expect(result.stdout.toString()).toContain("+ import { cn } from '@/utils/cn';");
+  });
+});
+
+describe('config files', () => {
+  const make = () =>
+    fixture({
+      'package.json': JSON.stringify({ name: 'x', main: './src/index.ts' }),
+      'tsconfig.json': JSON.stringify({ include: ['src'] }),
+      'src/index.ts': 'export {};\n',
+    });
+
+  test('are only reported without --config', async () => {
+    const root = make();
+
+    const result = await run(base(root, { config: false, moves: [move(root, 'src', 'lib')] }));
+
+    expect(read(root, 'package.json')).toContain('./src/index.ts');
+    expect(result.configFilesChanged).toEqual([]);
+    expect(result.configHits.some((hit) => hit.file.endsWith('package.json') && hit.text.includes('./src/index.ts'))).toBe(true);
+  });
+
+  test('are rewritten with --config', async () => {
+    const root = make();
+
+    const result = await run(base(root, { config: true, moves: [move(root, 'src', 'lib')] }));
+
+    expect(read(root, 'package.json')).toContain('./lib/index.ts');
+    expect(result.configFilesChanged.length).toBe(2);
   });
 });
 

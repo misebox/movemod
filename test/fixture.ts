@@ -36,5 +36,9 @@ export const base = (root: string, extra: Partial<Parameters<typeof run>[0]> = {
   calls: [],
   style: 'shortest' as const,
   apply: true,
+  // Most tests check what warnings say, not that they stop the run
+  force: true,
+  // Config rewriting is opt-in; tests that check it need it on
+  config: true,
   ...extra,
 });

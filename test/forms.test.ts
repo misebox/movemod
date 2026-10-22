@@ -55,7 +55,7 @@ describe('rewritten forms', () => {
   });
 });
 
-describe('warnings that drive --strict', () => {
+describe('warnings that stop a run without --force', () => {
   test('warnings is empty for a normal move without warnings', async () => {
     const root = fixture({
       'tsconfig.json': TSCONFIG,

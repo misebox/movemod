@@ -49,7 +49,10 @@ export type Options = {
   // When false, changes nothing and only returns the result
   apply: boolean;
   // When there are warnings, fails without changing anything
-  strict?: boolean;
+  // Apply even when there are warnings. Without it, warnings stop the run before anything is changed
+  force?: boolean;
+  // Rewrite paths in package.json, tsconfig*.json and jsconfig*.json. Without it, they are only reported
+  config?: boolean;
 };
 
 export type Result = {
@@ -128,23 +131,18 @@ const listProjectFiles = (fs: FsIndex, project: Project, seen: Set<string>): str
   return files;
 };
 
-const depthOf = (dir: string) => dir.split('/').length;
-
-// To avoid mixing up copies of package.json (e.g. in dist/), use the shallowest one per name (by path order at equal depth)
+// Packages sharing a name: a copy inside the other one (e.g. dist/package.json) belongs to it, so the
+// outer one is used. Folders that are unrelated cannot be told apart, so none is used and it warns
 const dropDuplicateNames = (list: Pkg[], warnings: string[]): Pkg[] => {
-  const byName = new Map<string, Pkg>();
-  const shallowFirst = [...list].sort(
-    (a, b) => depthOf(a.dir) - depthOf(b.dir) || a.dir.localeCompare(b.dir),
-  );
-  for (const pkg of shallowFirst) {
-    const kept = byName.get(pkg.name);
-    if (kept) {
-      warnings.push(`${pkg.dir}/package.json: ignored, same name as ${kept.dir}/package.json: ${pkg.name}`);
-    } else {
-      byName.set(pkg.name, pkg);
-    }
-  }
-  return [...byName.values()];
+  const groups = new Map<string, Pkg[]>();
+  for (const pkg of list) groups.set(pkg.name, [...(groups.get(pkg.name) ?? []), pkg]);
+  return [...groups].flatMap(([name, group]) => {
+    if (group.length === 1) return group;
+    const owner = group.find((pkg) => group.every((other) => other === pkg || other.dir.startsWith(`${pkg.dir}/`)));
+    if (owner) return [owner];
+    warnings.push(`same package name "${name}" in ${group.map((pkg) => pkg.dir).sort().join(', ')}; none of them is used`);
+    return [];
+  });
 };
 
 // Check whether the name exists on disk, case-sensitive but ignoring Unicode normalization (NFC vs NFD)
@@ -285,9 +283,13 @@ export const run = async (options: Options): Promise<Result> => {
       const edit = REWRITABLE_JSON.test(name)
         ? rewriteJsonPaths(file, text, map, (path) => existsSync(toNative(path)))
         : undefined;
-      if (edit) {
+      if (edit && options.config) {
         edits.push({ oldPath: file, newPath: map(file), text: edit.text });
         configFilesChanged.push(file);
+      } else if (edit) {
+        // Not rewritten without --config: report the lines that would change
+        const lines = text.split('\n');
+        for (const line of edit.changedLines) configHits.push({ file, line, text: lines[line - 1].trim() });
       }
       configHits.push(
         ...findConfigHits({ file, text, root, froms, skipLines: edit?.changedLines }),
@@ -296,9 +298,9 @@ export const run = async (options: Options): Promise<Result> => {
   }
   clock.lap('config files');
 
-  if (options.apply && options.strict && warnings.length > 0) {
+  if (options.apply && !options.force && warnings.length > 0) {
     throw new Error(
-      `--strict: nothing was changed because of ${warnings.length} warnings:\n${warnings.map((warning) => `  ${warning}`).join('\n')}`,
+      `nothing was changed because of ${warnings.length} warnings (add --force to apply anyway):\n${warnings.map((warning) => `  ${warning}`).join('\n')}`,
     );
   }
 

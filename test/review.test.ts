@@ -111,7 +111,7 @@ describe('include pointing outside the tsconfig', () => {
 });
 
 describe('packages with the same name', () => {
-  test('does not use the copy in dist and warns', async () => {
+  test('uses the outer one over a copy inside it (dist), without a warning', async () => {
     const root = fixture({
       'tsconfig.json': JSON.stringify({ include: ['packages', 'apps'] }),
       'packages/a/package.json': JSON.stringify({ name: '@x/a' }),
@@ -124,6 +124,6 @@ describe('packages with the same name', () => {
     const result = await run(base(root, { moves: [move(root, 'packages/a/src/foo.ts', 'packages/a/src/bar.ts')] }));
 
     expect(read(root, 'apps/web/src/u.ts')).toContain("'@x/a/src/bar'");
-    expect(result.warnings.some((w) => w.includes('same name'))).toBe(true);
+    expect(result.warnings.some((w) => w.includes('same package name'))).toBe(false);
   });
 });

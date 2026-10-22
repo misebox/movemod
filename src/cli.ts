@@ -41,7 +41,8 @@ Options:
   --verbose                 list every changed line
   --timing                  show the time of each stage
   --json                    print the result as JSON
-  --strict                  with warnings (skipped files, unresolved imports): change nothing and exit with 1
+  --config                  also rewrite paths in package.json, tsconfig*.json and jsconfig*.json (default: only report them)
+  --force                   apply even with warnings (skipped files, unresolved imports); without it, warnings stop the run before any change
   -h, --help                show this help`;
 
 const parse = () =>
@@ -60,7 +61,8 @@ const parse = () =>
       verbose: { type: 'boolean' },
       timing: { type: 'boolean' },
       json: { type: 'boolean' },
-      strict: { type: 'boolean' },
+      force: { type: 'boolean' },
+      config: { type: 'boolean' },
     },
   });
 
@@ -168,7 +170,8 @@ const options: Options = {
   workers,
   detail: dryRun || (values.verbose ?? false),
   apply: !dryRun,
-  strict: values.strict ?? false,
+  force: values.force ?? false,
+  config: values.config ?? false,
 };
 
 const cwd = resolveInput('.');
@@ -178,7 +181,8 @@ const plural = (count: number, word: string) => `${count} ${word}${count === 1 ?
 try {
   const result = await run(options);
 
-  const exitCode = values.strict && result.warnings.length > 0 ? 1 : 0;
+  // A dry run with warnings exits with 1 too: applying it would stop
+  const exitCode = !values.force && result.warnings.length > 0 ? 1 : 0;
 
   if (values.json) {
     print(JSON.stringify(result, null, 2));
