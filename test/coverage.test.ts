@@ -29,7 +29,7 @@ describe('moves across packages', () => {
     expect(read(root, 'packages/c/src/u.ts')).toBe("import { x } from '@w/b/src/x';\n");
   });
 
-  test('relative imports from a moved file to another package become package names', async () => {
+  test('relative imports from a moved file to another package stay relative', async () => {
     const root = fixture({
       ...workspace(''),
       'packages/a/src/x.ts': "import { k } from '../../b/src/keep';\nexport const x = k;\n",
@@ -37,7 +37,7 @@ describe('moves across packages', () => {
 
     await run(base(root, { moves: [move(root, 'packages/a/src/x.ts', 'packages/c/src/x.ts')] }));
 
-    expect(read(root, 'packages/c/src/x.ts')).toBe("import { k } from '@w/b/src/keep';\nexport const x = k;\n");
+    expect(read(root, 'packages/c/src/x.ts')).toBe("import { k } from '../../b/src/keep';\nexport const x = k;\n");
   });
 
   test('does not treat the root package.json as a package', async () => {

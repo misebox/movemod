@@ -187,15 +187,10 @@ export const createRewriter = (options: RewriterOptions) => {
     const targetNew = map(resolved.file);
     const target = specifierTarget(resolved, targetNew);
 
-    const importerBefore = packages.nearestBefore(file);
+    // The package name form is kept only for imports that were already written that way
     const importerAfter = packages.nearestAfter(newPath);
     const targetPackage = packages.nearestAfter(targetNew);
-    const importerPackageChanged = importerAfter !== undefined && importerBefore !== importerAfter;
-    if (
-      targetPackage !== undefined &&
-      importerAfter !== targetPackage &&
-      (origin === 'package' || importerPackageChanged)
-    ) {
+    if (origin === 'package' && targetPackage !== undefined && importerAfter !== targetPackage) {
       const inside = relative(packages.dirAfter(targetPackage), target);
       return inside === '' ? targetPackage.name : `${targetPackage.name}/${inside}`;
     }
