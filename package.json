@@ -6,10 +6,10 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/misebox/tsmv.git"
+    "url": "git+https://github.com/misebox/movemod.git"
   },
-  "homepage": "https://github.com/misebox/tsmv#readme",
-  "bugs": "https://github.com/misebox/tsmv/issues",
+  "homepage": "https://github.com/misebox/movemod#readme",
+  "bugs": "https://github.com/misebox/movemod/issues",
   "keywords": [
     "typescript",
     "javascript",
