@@ -36,8 +36,8 @@ src/pages/home/index.tsx:1
 - import { Button } from '../../components/Button';
 + import { Button } from '@/ui/Button';
 
-Check by hand: paths in strings that are not imports (1)
-  src/scripts/seed.ts:3  'src/components/Button/data.json'  (relative to the working directory; points to a moved path)
+Check by hand: paths in strings that point to moved files (1)
+  src/scripts/seed.ts:3  readFileSync('src/components/Button/data.json')
 
 Check by hand: moved paths in config files (1)
   .github/workflows/ci.yml:8  - run: bun test src/components/Button
@@ -74,4 +74,4 @@ Use `--style keep` to keep each import's current style.
 | `--dry-run` | Show what would change; change nothing |
 | `--tsconfig <path>` | tsconfig that selects the files to rewrite. Default: `./tsconfig.json` |
 | `--bulk-list <path>` | File with a list of moves, one `<from> <to>` per line. Lines starting with `#` are ignored |
-| `--call <name>` | Function whose first argument is a module path (`vi.mock` and `jest.mock` are built in) |
+| `--func <name>` | Also rewrite the path in the first argument of this function, e.g. `loadModule('./foo')`. `require`, `import()`, `vi.mock` and `jest.mock` are built in |

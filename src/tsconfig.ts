@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, isAbsolute, join, relative, resolve } from 'node:path/posix';
 import { parseJsonc } from './jsonc.ts';
@@ -64,6 +64,10 @@ const splitWildcard = (value: string): PathPattern => {
 
 export const loadProject = (tsconfig: string): Project => {
   const dir = dirname(tsconfig);
+  // tsconfig も jsconfig も無いプロジェクトは、alias 無しで全ファイルを対象にする
+  if (!existsSync(toNative(tsconfig))) {
+    return { dir, include: ['**/*'], exclude: [], aliases: [] };
+  }
   let include: string[] | undefined;
   let exclude: string[] | undefined;
   let files: string[] | undefined;

@@ -12,7 +12,7 @@
 //                              keep: keep each import's current style
 //   --tsconfig <path>          tsconfig that selects the files to rewrite (repeatable; default ./tsconfig.json)
 //   --bulk-list <path>         file with a list of moves, one "<from> <to>" per line; lines starting with # are ignored
-//   --call <name>              function whose first argument is a module path, e.g. vi.mock (repeatable)
+//   --func <name>              also rewrite the path in the first argument of this function, e.g. loadModule (repeatable)
 //   --include <path>           extra file or folder to rewrite that the tsconfig does not cover (repeatable)
 //   --root <dir>               where to look for package.json and config files (default: cwd)
 //   --workers <n>              number of worker threads (default: from file count and CPU count; 1 disables)
@@ -35,22 +35,57 @@ const fail = (message: string): never => {
 
 const print = (line: string) => console.log(toNativeText(line));
 
-const { values, positionals } = parseArgs({
-  allowPositionals: true,
-  options: {
-    tsconfig: { type: 'string', multiple: true },
-    root: { type: 'string' },
-    include: { type: 'string', multiple: true },
-    call: { type: 'string', multiple: true },
-    style: { type: 'string' },
-    workers: { type: 'string' },
-    'bulk-list': { type: 'string' },
-    'dry-run': { type: 'boolean' },
-    verbose: { type: 'boolean' },
-    timing: { type: 'boolean' },
-    json: { type: 'boolean' },
-  },
-});
+const USAGE = `Move TS/JS files and folders, and rewrite the imports that point to them.
+
+Usage:
+  tsmv <from> <to> [<from> <to> ...]   move and rewrite imports
+  tsmv <path>                          normalize the import style in a file or folder ("." for all)
+
+Options:
+  --dry-run                 show what would change; change nothing
+  --bulk-list <path>        file with moves, one "<from> <to>" per line; "#" starts a comment
+  --style <shortest|keep>   shortest: relative first, alias when shorter (default); keep: keep each import's style
+  --tsconfig <path>         tsconfig or jsconfig that selects the files (default: ./tsconfig.json, ./jsconfig.json)
+  --func <name>             also rewrite the path in the first argument of this function, e.g. loadModule (repeatable)
+                            built in: require, import(), vi.mock, jest.mock
+  --include <path>          extra file or folder to rewrite (repeatable)
+  --root <dir>              where to look for package.json and config files (default: cwd)
+  --workers <n>             worker threads (1 disables)
+  --verbose                 list every changed line
+  --timing                  show the time of each stage
+  --json                    print the result as JSON
+  -h, --help                show this help`;
+
+const parse = () =>
+  parseArgs({
+    allowPositionals: true,
+    options: {
+      help: { type: 'boolean', short: 'h' },
+      tsconfig: { type: 'string', multiple: true },
+      root: { type: 'string' },
+      include: { type: 'string', multiple: true },
+      func: { type: 'string', multiple: true },
+      style: { type: 'string' },
+      workers: { type: 'string' },
+      'bulk-list': { type: 'string' },
+      'dry-run': { type: 'boolean' },
+      verbose: { type: 'boolean' },
+      timing: { type: 'boolean' },
+      json: { type: 'boolean' },
+    },
+  });
+
+let parsed: ReturnType<typeof parse>;
+try {
+  parsed = parse();
+} catch (error) {
+  fail(`${error instanceof Error ? error.message.split('.')[0] : error}\n\n${USAGE}`);
+}
+const { values, positionals } = parsed;
+if (values.help) {
+  console.log(USAGE);
+  process.exit(0);
+}
 
 const style = values.style ?? 'shortest';
 if (style !== 'shortest' && style !== 'keep') fail('--style must be shortest or keep');
@@ -68,7 +103,7 @@ if (bulkList) {
   }
 }
 if (!scope && paths.length === 0) {
-  fail('usage: tsmv <from> <to> [<from> <to> ...]  |  tsmv <path>  (see README.md)');
+  fail(USAGE);
 }
 if (paths.length % 2 !== 0) fail('give sources and destinations in pairs: <from> <to>');
 
@@ -77,9 +112,12 @@ for (let i = 0; i < paths.length; i += 2) {
   moves.push({ from: resolveInput(paths[i]), to: resolveInput(paths[i + 1]) });
 }
 
-const tsconfigs = (values.tsconfig ?? ['tsconfig.json']).map(resolveInput);
-for (const tsconfig of tsconfigs) {
-  if (!existsSync(toNative(tsconfig))) fail(`tsconfig not found: ${tsconfig}`);
+const defaultConfig = ['tsconfig.json', 'jsconfig.json'].find((name) => existsSync(name));
+const tsconfigs = (values.tsconfig ?? [defaultConfig ?? 'tsconfig.json']).map(resolveInput);
+if (values.tsconfig) {
+  for (const tsconfig of tsconfigs) {
+    if (!existsSync(toNative(tsconfig))) fail(`tsconfig not found: ${tsconfig}`);
+  }
 }
 
 const dryRun = values['dry-run'] ?? false;
@@ -89,7 +127,7 @@ const options: Options = {
   tsconfigs,
   root: resolveInput(values.root ?? '.'),
   includes: (values.include ?? []).map(resolveInput),
-  calls: values.call ?? [],
+  calls: values.func ?? [],
   style: style as Style,
   workers: values.workers === undefined ? undefined : Number(values.workers),
   detail: dryRun || (values.verbose ?? false),
@@ -127,9 +165,10 @@ try {
     for (const file of result.configFilesChanged) print(`  ${show(file)}`);
   }
   if (result.suspects.length > 0) {
-    print(`\nCheck by hand: paths in strings that are not imports (${result.suspects.length})`);
-    for (const { file, line, text, reason } of result.suspects) {
-      print(`  ${show(file)}:${line}  '${text}'  (${reason})`);
+    print(`\nCheck by hand: paths in strings that point to moved files (${result.suspects.length})`);
+    for (const { file, line, text, reason, callee } of result.suspects) {
+      const quoted = callee ? `${callee}('${text}')` : `'${text}'`;
+      print(`  ${show(file)}:${line}  ${quoted}${reason ? `  (${reason})` : ''}`);
     }
   }
   if (result.configHits.length > 0) {

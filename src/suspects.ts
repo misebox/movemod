@@ -2,9 +2,16 @@ import { resolve } from 'node:path/posix';
 import type { FsIndex } from './fsIndex.ts';
 
 // import ではない文字列のうち、移動に影響を受けそうなパス
-export type Suspect = { file: string; line: number; text: string; reason: string };
+// reason は、パス先が動くときは無く、このファイル自身が動くときだけ入る
+// callee は、文字列が第 1 引数として渡されている関数の名前
+export type Suspect = { file: string; line: number; text: string; reason?: string; callee?: string };
 
 const PATH_LIKE_STRING = /(['"`])([^'"`\s\\]*\/[^'"`\s\\]*)\1/g;
+const CALLEE_BEFORE = /([\w$.]+)\s*\(\s*$/;
+const CALLEE_LOOKBEHIND = 80;
+
+const calleeOf = (source: string, index: number) =>
+  CALLEE_BEFORE.exec(source.slice(Math.max(0, index - CALLEE_LOOKBEHIND), index))?.[1];
 
 const lineOf = (source: string, index: number) => {
   let line = 1;
@@ -43,12 +50,12 @@ export const findSuspects = (options: {
       if (!fs.isFile(path) && !fs.isDirectory(path)) continue;
       const targetMoved = map(path) !== path;
       if (!targetMoved && !(relativeToFile && fileMoved)) continue;
-      const base = relativeToFile ? 'relative to this file' : 'relative to the working directory';
       suspects.push({
         file,
         line: lineOf(source, match.index),
         text: match[2],
-        reason: `${base}; ${targetMoved ? 'points to a moved path' : 'this file moves'}`,
+        callee: calleeOf(source, match.index),
+        reason: targetMoved ? undefined : 'this file moves',
       });
       break;
     }

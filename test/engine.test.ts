@@ -57,6 +57,16 @@ describe('mv', () => {
     expect(read(root, 'src/c/user.ts')).toContain("'../d/e/x'");
   });
 
+  test('tsconfig が無い JS プロジェクトでも動く', async () => {
+    const root = fixture({
+      'index.js': "const a = require('./lib/a');\nmodule.exports = a;\n",
+      'lib/a.js': 'module.exports = 1;\n',
+    });
+    await run(base(root, { moves: [{ from: join(root, 'lib'), to: join(root, 'src/lib') }] }));
+
+    expect(read(root, 'index.js')).toContain("require('./src/lib/a')");
+  });
+
   test('フォルダを動かすと、中の相対 import は変わらず、外からの import だけ直る', async () => {
     const root = fixture({
       'tsconfig.json': TSCONFIG,
@@ -132,6 +142,7 @@ describe('mv', () => {
     const result = await run(base(root, { apply: false, moves: [{ from: join(root, 'src/data'), to: join(root, 'src/assets') }] }));
 
     expect(result.suspects.map((s) => s.text)).toEqual(['./data/a.json']);
+    expect(result.suspects.map((s) => s.callee)).toEqual(['readFileSync']);
     expect(result.configHits.map((h) => h.file.endsWith('ci.yml'))).toEqual([true]);
   });
 
