@@ -67,6 +67,20 @@ import { z } from '@/lib/z';      // '../../../lib/z' is longer: alias
 
 Use `--style keep` to keep each import's current style.
 
+## Faster standalone binary
+
+Not published. Build it yourself (about 65-100 MB):
+
+```sh
+git clone https://github.com/misebox/movemod
+cd movemod
+bun install
+bun run build:bin             # for this machine: dist/movemod-<os>-<cpu>
+bun run build:bin linux-x64   # for another machine
+```
+
+Targets: `darwin-arm64`, `darwin-x64`, `linux-arm64`, `linux-x64`, `linux-arm64-musl`, `linux-x64-musl` (Alpine), `win32-arm64`, `win32-x64`.
+
 ## Options
 
 | Option | Description |
