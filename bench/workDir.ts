@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 export const WORK_DIR = join(import.meta.dirname, '.work');
-const MARKER_PATH = join(WORK_DIR, '.tsmv-bench');
+const MARKER_PATH = join(WORK_DIR, '.movemod-bench');
 
 // マーカーがあるフォルダだけを消す。bench が作ったものではない場合は止める
 export const cleanWorkDir = (): void => {

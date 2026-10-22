@@ -1,15 +1,15 @@
-# mvmod
+# movemod
 
 Move TS/JS files and folders, and rewrite the imports that point to them.
 
 ```sh
-npx mvmod src/components/Button src/ui/Button
+npx movemod src/components/Button src/ui/Button
 ```
 
 Every file that refers to `Button` is updated, whether it uses a relative path, an alias, `vi.mock`, `import()` or `require`. The moved files are updated too. Add `--dry-run` to see the changes without making them:
 
 ```
-$ npx mvmod src/components/Button src/ui/Button --dry-run
+$ npx movemod src/components/Button src/ui/Button --dry-run
 src/components/Button -> src/ui/Button
 
 src/components/Button/index.tsx:1
@@ -45,12 +45,12 @@ Check by hand: moved paths in config files (1)
 Dry run: 5 files, 6 imports would change (7 files scanned). Nothing was written.
 ```
 
-Paths that mvmod cannot rewrite safely are listed under "Check by hand".
+Paths that movemod cannot rewrite safely are listed under "Check by hand".
 
 Normalize the import style inside a folder:
 
 ```sh
-npx mvmod src
+npx movemod src
 ```
 
 ## Import style

@@ -3,7 +3,7 @@
   "configVersion": 1,
   "workspaces": {
     "": {
-      "name": "mvmod",
+      "name": "movemod",
       "dependencies": {
         "oxc-parser": "^0.155.0",
       },

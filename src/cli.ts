@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 // Usage:
-//   mvmod <from> <to> [<from> <to> ...]  move files or folders and rewrite imports; <to> is the new path itself
-//   mvmod --bulk-list <path>             read the moves from a file, one "<from> <to>" per line
-//   mvmod <path>                         normalize the import style inside a file or folder
-//                                        use `mvmod .` for everything (for example after adding an alias)
+//   movemod <from> <to> [<from> <to> ...]  move files or folders and rewrite imports; <to> is the new path itself
+//   movemod --bulk-list <path>             read the moves from a file, one "<from> <to>" per line
+//   movemod <path>                         normalize the import style inside a file or folder
+//                                          use `movemod .` for everything (for example after adding an alias)
 //   with no arguments, nothing happens
 //
 // Options:
@@ -38,8 +38,8 @@ const print = (line: string) => console.log(toNativeText(line));
 const USAGE = `Move TS/JS files and folders, and rewrite the imports that point to them.
 
 Usage:
-  mvmod <from> <to> [<from> <to> ...]  move and rewrite imports
-  mvmod <path>                         normalize the import style in a file or folder ("." for all)
+  movemod <from> <to> [<from> <to> ...]  move and rewrite imports
+  movemod <path>                         normalize the import style in a file or folder ("." for all)
 
 Options:
   --dry-run                 show what would change; change nothing
