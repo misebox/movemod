@@ -42,12 +42,24 @@ const firstWrongCase = (
   return undefined;
 };
 
+const SHOWN_NAMES = 3;
+
+// " (contains: a, b, c, ... and 4 more)" for a non-empty folder
+const describeContents = (names: string[]): string => {
+  if (names.length === 0) return '';
+  const hidden = names.length - SHOWN_NAMES;
+  const shown = names.slice(0, SHOWN_NAMES).join(', ');
+  return ` (contains: ${shown}${hidden > 0 ? `, ... and ${hidden} more` : ''})`;
+};
+
 // Checks cases such as a destination inside another source, in O(count x depth).
 // exists ignores case on case-insensitive filesystems, so isExactCase compares against the spelling on disk
 export const checkMoves = (
   moves: Move[],
   exists: (path: string) => boolean,
   isExactCase: (path: string) => boolean = () => true,
+  // Names inside a folder, hidden ones included; empty for a file
+  list: (path: string) => string[] = () => [],
 ): void => {
   const problems: string[] = [];
   const froms = new Set<string>();
@@ -63,8 +75,13 @@ export const checkMoves = (
     if (wrongParent) problems.push(`destination folder differs in letter case from the one on disk: ${wrongParent}`);
     // A move that only changes case points to the same file, so it is not an overwrite
     const renamesCaseOnly = from !== to && from.toLowerCase() === to.toLowerCase();
-    if (exists(to) && !(renamesCaseOnly && !isExactCase(to))) {
-      problems.push(`destination already exists: ${to}`);
+    if (from === to) {
+      problems.push(`source and destination are the same: ${to}`);
+    } else if (from.startsWith(`${to}/`)) {
+      // Moving a folder onto its own parent would merge its contents into the parent
+      problems.push(`destination is a parent of the source (merge is not supported): ${to}${describeContents(list(to))}`);
+    } else if (exists(to) && !(renamesCaseOnly && !isExactCase(to))) {
+      problems.push(`destination already exists: ${to}${describeContents(list(to))}`);
     }
     if (froms.has(from)) problems.push(`duplicate source: ${from}`);
     if (tos.has(to)) problems.push(`duplicate destination: ${to}`);
