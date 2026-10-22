@@ -2,8 +2,8 @@ import { dirname } from 'node:path/posix';
 
 export type Move = { from: string; to: string };
 
-// from と一致するパス、または from の中にあるパスを、to の側に付け替える。
-// 末尾から親へ順にたどり、最初に見つかった from（いちばん深い from）を使う。
+// Remaps a path equal to from, or inside from, onto to.
+// Walks from the end up through the parents and uses the first from found (the deepest one).
 export const createPathMapper = (moves: Move[]) => {
   const toByFrom = new Map(moves.map(({ from, to }) => [from, to]));
   const cache = new Map<string, string>();
@@ -30,7 +30,7 @@ export const createPathMapper = (moves: Move[]) => {
 
 const DRIVE_ROOT = /^\/[A-Za-z]:$/;
 
-// path とその親のうち、実在するのにディスク上の綴りと大文字小文字が違うもの。Windows のドライブ直下は読まない
+// Path or parents that exist but differ in case from the spelling on disk. Does not read directly under a Windows drive
 const firstWrongCase = (
   path: string,
   exists: (path: string) => boolean,
@@ -42,8 +42,8 @@ const firstWrongCase = (
   return undefined;
 };
 
-// 移動先が別の移動元の中にある場合などを、O(件数 × 深さ) で調べる。
-// exists は大文字小文字を区別しないファイルシステムでは区別しないので、isExactCase でディスク上の綴りと照合する
+// Checks cases such as a destination inside another source, in O(count x depth).
+// exists ignores case on case-insensitive filesystems, so isExactCase compares against the spelling on disk
 export const checkMoves = (
   moves: Move[],
   exists: (path: string) => boolean,
@@ -61,7 +61,7 @@ export const checkMoves = (
     }
     const wrongParent = firstWrongCase(dirname(to), exists, isExactCase);
     if (wrongParent) problems.push(`destination folder differs in letter case from the one on disk: ${wrongParent}`);
-    // 大文字小文字だけを変える移動は、同じファイルを指しているので上書きではない
+    // A move that only changes case points to the same file, so it is not an overwrite
     const renamesCaseOnly = from !== to && from.toLowerCase() === to.toLowerCase();
     if (exists(to) && !(renamesCaseOnly && !isExactCase(to))) {
       problems.push(`destination already exists: ${to}`);

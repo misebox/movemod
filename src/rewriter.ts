@@ -7,7 +7,7 @@ import { chooseSpecifier, isRelative, relativeSpecifier, type Origin, type Style
 import { findSuspects, type Suspect } from './suspects.ts';
 import type { Alias } from './tsconfig.ts';
 
-// line / before / after は、RewriterOptions の detail が true のときだけ入る
+// line / before / after are set only when RewriterOptions detail is true
 export type Change = {
   file: string;
   from: string;
@@ -18,7 +18,7 @@ export type Change = {
 };
 
 export type FileResult = {
-  // 構文エラーなどで、このファイルは書き換えなかった
+  // This file was left unchanged because of a syntax error etc.
   skipped?: boolean;
   text?: string;
   changes: Change[];
@@ -26,12 +26,12 @@ export type FileResult = {
   warnings: string[];
 };
 
-// implicit は、baseUrl 基準の書き方（'components/Button'）で指されているとき
+// implicit is set when the target is named in the baseUrl form ('components/Button')
 type Target = { resolved: Resolved; origin: Origin; implicit?: boolean };
 
-// tsconfig ごとの状態。指定子の解決結果は、同じ指定子なら 1 回だけ求める
+// State per tsconfig. A specifier's resolution is computed only once per identical specifier
 export type ProjectContext = {
-  // paths に書かれた alias と、baseUrl から決まる暗黙の alias
+  // Aliases from paths, and implicit aliases derived from baseUrl
   aliases: Alias[];
   implicitAliases: Alias[];
   prefilter: RegExp;
@@ -47,17 +47,17 @@ export type RewriterOptions = {
   style: Style;
   calls: string[];
   root: string;
-  // 移動が無くても、すべての指定子を書き方の規則に合わせて書き直す
+  // Rewrites every specifier to match the style rule, even without moves
   realign: boolean;
   suspects: boolean;
-  // 変更ごとに、行番号と書き換え前後の行を求める
+  // Compute the line number and the lines before and after for each change
   detail: boolean;
 };
 
 const escapeRegExp = (text: string) => text.replace(/[.+*?^${}()|[\]\\]/g, '\\$&');
 
-// 相対パスか alias かパッケージ名で始まる文字列が無いファイルは、パースしない
-// prefix が空の alias（"*" や baseUrl）は、行き先のフォルダにあるファイル名とフォルダ名で始まる文字列だけを見る
+// Files with no string starting with a relative path, alias, or package name are not parsed
+// For an alias with an empty prefix ("*" or baseUrl), only strings starting with a file or folder name in the target folder are checked
 const entryHeads = (fs: FsIndex, alias: Alias): string[] =>
   alias.targets
     .filter((target) => target.wildcard && target.prefix.endsWith('/'))
@@ -99,7 +99,7 @@ const describeLine = (source: string, start: number, end: number, text: string) 
   };
 };
 
-// 後ろの置換から適用して、前の置換の位置がずれないようにする
+// Apply replacements from the end so earlier positions do not shift
 const applyReplacements = (source: string, replacements: Replacement[]): string => {
   let result = source;
   for (const { start, end, text } of [...replacements].sort((a, b) => b.start - a.start)) {
@@ -143,8 +143,8 @@ export const createRewriter = (options: RewriterOptions) => {
     return target;
   };
 
-  // 解決できなかった alias やパッケージ名の指定子のうち、行き先が移動するパスの中にあるもの。
-  // exports で公開されたサブパスや、まだ無い生成物のように、移動と関係ないものは警告しない
+  // Unresolved alias or package-name specifiers whose target is inside a moved path.
+  // No warning for things unrelated to moves, such as subpaths published via exports or build outputs that do not exist yet
   const pointsIntoMovedPath = (project: ProjectContext, text: string) => {
     const candidates = [
       ...aliasCandidates([...project.aliases, ...project.implicitAliases], text),
@@ -153,7 +153,7 @@ export const createRewriter = (options: RewriterOptions) => {
     return candidates.some((base) => map(base) !== base);
   };
 
-  // ワークスペース内のパッケージ名で書かれた、パッケージの中身へのパス
+  // Path into a package's contents, written with a workspace package name
   const packageSubpath = (text: string): string[] => {
     const parts = text.split('/');
     const nameLength = text.startsWith('@') ? 2 : 1;
@@ -167,7 +167,7 @@ export const createRewriter = (options: RewriterOptions) => {
     return base === undefined ? undefined : resolvePath(fs, base);
   };
 
-  // alias にもパッケージ名にもせず、元の書き方（./ を付けるかどうか）を保って相対パスにする
+  // Use a relative path, not an alias or package name, keeping the original form (with or without ./)
   const relativeOnlySpecifier = (
     original: string,
     newPath: string,

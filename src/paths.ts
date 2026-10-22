@@ -1,7 +1,7 @@
 import { resolve as nativeResolve } from 'node:path';
 
-// 内部のパスはすべて POSIX 形式で持つ。Windows の 'C:\a' は '/C:/a' にする。
-// 変換が要るのは Windows だけなので、他の環境では何もしない関数を使う
+// All internal paths are POSIX. Windows 'C:\a' becomes '/C:/a'.
+// Only Windows needs conversion, so other platforms use a no-op function
 export const createConverters = (isWindows: boolean) => {
   if (!isWindows) {
     const same = (text: string) => text;
@@ -21,5 +21,5 @@ export const { fromNative, toNative, toNativeText } = createConverters(
   process.platform === 'win32',
 );
 
-// cwd からの相対パスか絶対パスを、内部の絶対パスにする
+// Turns a path relative to cwd, or an absolute path, into an internal absolute path
 export const resolveInput = (path: string): string => fromNative(nativeResolve(path));

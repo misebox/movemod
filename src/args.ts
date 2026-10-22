@@ -7,7 +7,7 @@ export const parseWorkers = (text: string | undefined): number | undefined => {
   return count;
 };
 
-// 1 行に "<from> <to>"。空行と、行頭が # の行は無視する。<from> <to> の順に並べた配列を返す
+// One "<from> <to>" per line. Blank lines and lines starting with # are ignored. Returns an array ordered <from> <to>
 export const parseBulkList = (text: string): string[] => {
   const paths: string[] = [];
   for (const [index, line] of text.split('\n').entries()) {

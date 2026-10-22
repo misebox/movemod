@@ -29,31 +29,31 @@ import { loadProject, type Project } from './tsconfig.ts';
 import { SOURCE_FILE, walk } from './walk.ts';
 
 export type Options = {
-  // 空のときは、移動せずに書き方だけをそろえる
+  // When empty, only normalizes the style without moving anything
   moves: Move[];
   tsconfigs: string[];
-  // 書き方をそろえる対象を、このパスの中のファイルに限る。省略するとすべて（移動があるときは使わない）
+  // Limits style normalization to files inside this path. All files if omitted (not used when there are moves)
   scope?: string[];
-  // パッケージ（package.json）と設定ファイルを探す起点
+  // Starting point for finding packages (package.json) and config files
   root: string;
-  // tsconfig の対象外で、import を書き換えたいファイルまたはフォルダ
+  // Files or folders outside tsconfig whose imports should be rewritten
   includes: string[];
-  // 第 1 引数をモジュール指定子として扱う関数名（DEFAULT_CALLS に加える）
+  // Names of functions whose first argument is treated as a module specifier (added to DEFAULT_CALLS)
   calls: string[];
   style: Style;
-  // 並列に処理する Worker の数。省略するとファイル数と CPU 数から決める（1 以下で Worker を使わない）
+  // Number of parallel Workers. Chosen from file count and CPU count if omitted (1 or less uses no Workers)
   workers?: number;
-  // 変更ごとに、行番号と書き換え前後の行を結果に含める
+  // Include the line number and the lines before and after in the result for each change
   detail?: boolean;
-  // false のときは何も変更せず、結果だけ返す
+  // When false, changes nothing and only returns the result
   apply: boolean;
-  // 警告があるときは、何も変更せずにエラーにする
+  // When there are warnings, fails without changing anything
   strict?: boolean;
 };
 
 export type Result = {
   scannedFiles: number;
-  // 構文エラーなどで書き換えなかったファイルの数
+  // Number of files left unchanged because of syntax errors etc.
   skippedFiles: number;
   changedFiles: number;
   changes: Change[];
@@ -65,7 +65,7 @@ export type Result = {
 };
 
 const READ_CONCURRENCY = 64;
-// これより少ないファイル数では、Worker の起動のほうが高くつく
+// With fewer files than this, starting Workers costs more than it saves
 const WORKER_MIN_FILES = 3000;
 const MAX_WORKERS = 4;
 
@@ -74,7 +74,7 @@ export const isWorkerCount = (value: number) => Number.isInteger(value) && value
 const defaultWorkerCount = (files: number) =>
   files < WORKER_MIN_FILES ? 1 : Math.min(availableParallelism(), MAX_WORKERS);
 
-// 近いファイルが同じチャンクに入るよう、順序を保って分ける
+// Split while keeping order, so nearby files land in the same chunk
 const splitEvenly = <T>(items: T[], count: number): T[][] => {
   const size = Math.ceil(items.length / count);
   return Array.from({ length: count }, (_, i) => items.slice(i * size, (i + 1) * size)).filter(
@@ -82,7 +82,7 @@ const splitEvenly = <T>(items: T[], count: number): T[][] => {
   );
 };
 
-// ソースのまま動かすときは worker.ts、ビルド後は worker.js
+// worker.ts when running from source, worker.js after build
 const WORKER_URL = new URL(
   import.meta.url.endsWith('.ts') ? './worker.ts' : './worker.js',
   import.meta.url,
@@ -106,7 +106,7 @@ const runInWorker = async (input: ChunkInput): Promise<ChunkOutput> => {
 const listProjectFiles = (fs: FsIndex, project: Project, seen: Set<string>): string[] => {
   const includes = project.include.map(compilePattern);
   const excludes = project.exclude.map(compilePattern);
-  // tsconfig のあるフォルダの外のファイルは、'../shared/x.ts' のような相対パスで照合する
+  // Files outside the tsconfig folder are matched by relative path such as '../shared/x.ts'
   const relativeToProject = (path: string) => relative(project.dir, path);
   const isExcluded = (path: string) => excludes.some((pattern) => pattern.test(relativeToProject(path)));
 
@@ -129,7 +129,7 @@ const listProjectFiles = (fs: FsIndex, project: Project, seen: Set<string>): str
 
 const depthOf = (dir: string) => dir.split('/').length;
 
-// dist/ などに package.json の写しがあっても取り違えないよう、同じ名前ではいちばん浅いもの（同じ深さなら名前順）を使う
+// To avoid mixing up copies of package.json (e.g. in dist/), use the shallowest one per name (by path order at equal depth)
 const dropDuplicateNames = (list: Pkg[], warnings: string[]): Pkg[] => {
   const byName = new Map<string, Pkg>();
   const shallowFirst = [...list].sort(
@@ -146,7 +146,7 @@ const dropDuplicateNames = (list: Pkg[], warnings: string[]): Pkg[] => {
   return [...byName.values()];
 };
 
-// 大文字小文字は区別し、Unicode の正規化（NFC と NFD）の違いは無視して、名前がディスク上にあるか調べる
+// Check whether the name exists on disk, case-sensitive but ignoring Unicode normalization (NFC vs NFD)
 const hasExactName = (entries: Map<string, unknown>, name: string): boolean => {
   if (entries.has(name)) return true;
   const normalized = name.normalize('NFC');

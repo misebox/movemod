@@ -1,4 +1,4 @@
-// 空白とコメントを飛ばした次の位置
+// Next position after skipping whitespace and comments
 const skipBlankAndComments = (text: string, from: number): number => {
   let i = from;
   while (i < text.length) {
@@ -16,7 +16,7 @@ const skipBlankAndComments = (text: string, from: number): number => {
   return i;
 };
 
-// コメントと末尾のカンマを許す JSON（tsconfig 用）
+// JSON that allows comments and trailing commas (for tsconfig)
 export const parseJsonc = (text: string): unknown => {
   const length = text.length;
   let out = '';

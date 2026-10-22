@@ -1,12 +1,12 @@
-// 単体実行ファイルを作る。使い方: bun scripts/build-bin.ts [<os>-<cpu>]（省略すると実行中の OS）
-// 対象 OS の oxc-parser のネイティブバイナリを埋め込む。入っていなければ npm から取る
+// Builds a standalone executable. Usage: bun scripts/build-bin.ts [<os>-<cpu>] (defaults to the current OS)
+// Embeds the oxc-parser native binary for the target OS. Fetches it from npm if not installed
 import { existsSync, mkdirSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 const ROOT = join(import.meta.dirname, '..');
 const CACHE_DIR = join(ROOT, 'node_modules', '.cache', 'movemod-bindings');
 
-// <os>-<cpu> から、oxc-parser のバインディング名を引く
+// Looks up the oxc-parser binding name from <os>-<cpu>
 const BINDINGS: Record<string, string> = {
   'darwin-arm64': 'darwin-arm64',
   'darwin-x64': 'darwin-x64',
@@ -58,7 +58,7 @@ const outfile = join(ROOT, 'dist', `movemod-${target}${target.startsWith('win32'
 
 const result = await Bun.build({
   entrypoints: [join(ROOT, 'src', 'main.ts'), join(ROOT, 'src', 'worker.ts')],
-  // oxc-parser が代わりに探す他の OS 用と wasm 用のパッケージは、入っていなくても解決しない
+  // Packages for other OSes and wasm, which oxc-parser may look for instead, are not resolved even if absent
   external: ['@oxc-parser/binding-*'],
   compile: { target: `bun-${target}` as Bun.Build.Target, outfile },
   plugins: [

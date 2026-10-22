@@ -1,13 +1,13 @@
 import { parseSync } from 'oxc-parser';
 
-// text は、クォートの内側の文字列。start と end も、クォートの内側の範囲
-// relativeOnly は、alias やパッケージ名では書けず、常にファイルからの相対パスで読まれる書き方
+// text is the string inside the quotes. start and end are also the range inside the quotes
+// relativeOnly is a form that cannot be an alias or package name and is always read as a path relative to the file
 export type Specifier = { text: string; start: number; end: number; relativeOnly?: boolean };
 
-// syntaxError は、パーサーが最初に報告したエラーの内容と行
+// syntaxError is the message and line of the first error the parser reported
 export type Collected = { specifiers: Specifier[]; syntaxError?: string };
 
-// 第 1 引数をモジュール指定子として扱う関数
+// Functions whose first argument is treated as a module specifier
 export const DEFAULT_CALLS = [
   'vi.mock',
   'vi.doMock',
@@ -27,7 +27,7 @@ type AstNode = { type?: string; start?: number; end?: number; [key: string]: unk
 
 const escapeRegExp = (text: string) => text.replace(/[.+*?^${}()|[\]\\]/g, '\\$&');
 
-// module 情報（AST を作らない）だけでは取れない書き方を含みそうなファイルを見分ける
+// Detect files likely to contain forms that module info alone (no AST) cannot capture
 export const buildAstTrigger = (calls: string[]): RegExp =>
   new RegExp(
     [
@@ -44,7 +44,7 @@ const countImportCalls = (source: string) => source.match(IMPORT_CALL)?.length ?
 
 const REFERENCE_PATH = /^\/\/\/\s*<reference\s+path=(["'])(.*?)\1/gm;
 
-// start と end は、クォートを含む範囲
+// start and end include the quotes
 const quoted = (source: string, start: number, end: number): Specifier | undefined => {
   const open = source[start];
   if (open !== '"' && open !== "'" && open !== '`') return undefined;

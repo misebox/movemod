@@ -4,16 +4,16 @@ import { join } from 'node:path';
 export const WORK_DIR = join(import.meta.dirname, '.work');
 const MARKER_PATH = join(WORK_DIR, '.movemod-bench');
 
-// マーカーがあるフォルダだけを消す。bench が作ったものではない場合は止める
+// Deletes only a folder that has the marker. Stops if bench did not create it
 export const cleanWorkDir = (): void => {
   if (!existsSync(WORK_DIR)) return;
   if (!existsSync(MARKER_PATH)) {
-    throw new Error(`bench が作ったフォルダではないため消しません: ${WORK_DIR}`);
+    throw new Error(`Not deleting, the folder was not created by bench: ${WORK_DIR}`);
   }
   rmSync(WORK_DIR, { recursive: true, force: true });
 };
 
-// 前回の残りを消してから、空の作業フォルダを作る
+// Removes leftovers from the previous run, then creates an empty work folder
 export const createWorkDir = (): string => {
   cleanWorkDir();
   mkdirSync(WORK_DIR, { recursive: true });

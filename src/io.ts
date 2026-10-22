@@ -13,11 +13,11 @@ let temporaryCounter = 0;
 export const readText =(path: string): Promise<string> =>
   bun ? bun.file(toNative(path)).text() : readFile(toNative(path), 'utf8');
 
-// 途中で失敗しても元のファイルが切り詰められないよう、同じフォルダの一時ファイルに書いてから置き換える。
-// シンボリックリンクはリンク先を書き換え、権限は元のファイルと同じにする。失敗したら一時ファイルを消す
+// Writes to a temp file in the same folder, then replaces, so a failure midway never truncates the original.
+// Symlinks: the target is rewritten. Permissions match the original file. The temp file is removed on failure
 export const writeText = async (path: string, text: string): Promise<void> => {
   const native = await realpath(toNative(path));
-  // 同じファイルを指すリンクを同時に書いても、一時ファイルがぶつからないようにする
+  // Keeps temp files from colliding when links to the same file are written at once
   const temporary = `${native}.${process.pid}.${temporaryCounter++}.movemod-tmp`;
   try {
     const { mode } = await stat(native);
@@ -34,8 +34,8 @@ export const writeText = async (path: string, text: string): Promise<void> => {
   }
 };
 
-// 同時に実行する数を limit に抑えて、items すべてに fn を実行する。
-// 1 つ失敗したら新しい項目は始めず、実行中のものが終わるのを待ってから、失敗をまとめて投げる
+// Runs fn on all items with at most limit running at once.
+// After one failure, starts no new items, waits for running ones to finish, then throws the failures together
 export const forEachLimit = async <T>(
   items: T[],
   limit: number,

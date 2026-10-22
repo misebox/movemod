@@ -12,7 +12,7 @@ const segmentToRegExp = (segment: string): string =>
 const normalize = (pattern: string) =>
   pattern.replace(/^\.\//, '').replace(/\/+$/, '');
 
-// tsconfig の include / exclude と同じ規則。拡張子も glob も無い最後の要素は、フォルダとして中身を含む
+// Same rules as tsconfig include / exclude. A last element with no extension or glob is a folder and includes its contents
 export const compilePattern = (pattern: string): RegExp => {
   const segments = normalize(pattern).split('/');
   const last = segments[segments.length - 1];
@@ -27,7 +27,7 @@ export const compilePattern = (pattern: string): RegExp => {
   return new RegExp(`^${body}${includesChildren ? '(?:/.*)?' : ''}$`);
 };
 
-// glob を含まない先頭部分。走査の起点になる
+// Leading part without a glob. The starting point of the scan
 export const staticPrefix = (pattern: string): string => {
   const segments = normalize(pattern).split('/');
   const index = segments.findIndex((segment) => /[*?]/.test(segment));

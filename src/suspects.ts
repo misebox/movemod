@@ -1,9 +1,9 @@
 import { resolve } from 'node:path/posix';
 import type { FsIndex } from './fsIndex.ts';
 
-// import ではない文字列のうち、移動に影響を受けそうなパス
-// reason は、パス先が動くときは無く、このファイル自身が動くときだけ入る
-// callee は、文字列が第 1 引数として渡されている関数の名前
+// Paths in non-import strings that a move may affect
+// reason is absent when the target moves, and set only when this file itself moves
+// callee is the name of the function that receives the string as its first argument
 export type Suspect = { file: string; line: number; text: string; reason?: string; callee?: string };
 
 const PATH_LIKE_STRING = /(['"`])([^'"`\s\\]*\/[^'"`\s\\]*)\1/g;
@@ -21,7 +21,7 @@ const lineOf = (source: string, index: number) => {
   return line;
 };
 
-// known は、書き換え対象として扱い済みの指定子の開始位置（クォートの内側）
+// known is the start positions (inside the quotes) of specifiers already handled for rewriting
 export const findSuspects = (options: {
   file: string;
   source: string;

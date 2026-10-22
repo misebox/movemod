@@ -7,13 +7,13 @@ export type Pkg = { name: string; dir: string };
 export type Packages = {
   byName: Map<string, Pkg>;
   names: string[];
-  // path を含むいちばん近いパッケージ。Before は移動前の位置、After は移動後の位置で探す
+  // Nearest package containing path. Before looks up the pre-move location, After the post-move location
   nearestBefore: (path: string) => Pkg | undefined;
   nearestAfter: (path: string) => Pkg | undefined;
   dirAfter: (pkg: Pkg) => string;
 };
 
-// name が無い package.json はパッケージではない。読めない・JSON として不正なときは警告する
+// A package.json without name is not a package. Warns if it is unreadable or invalid JSON
 export const readPackage = (packageJson: string, warn: (message: string) => void): Pkg | undefined => {
   try {
     const { name } = JSON.parse(readFileSync(toNative(packageJson), 'utf8')) as { name?: unknown };

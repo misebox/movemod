@@ -5,7 +5,7 @@ export type RepoSpec = {
   files: number;
   moves: number;
   importsPerFile: number;
-  // import のうち alias で書く割合（同じフォルダ内の import は常に './'）
+  // Share of imports written with an alias (imports within the same folder always use './')
   aliasRatio: number;
   seed: number;
 };
@@ -29,7 +29,7 @@ const createRandom = (seed: number) => {
   };
 };
 
-// src/dA/dB/dC を深さ 3 の葉フォルダとして、葉の数だけ作る
+// Creates as many leaf folders as needed, each a depth-3 leaf like src/dA/dB/dC
 const leafDirectories = (files: number): string[] => {
   const count = Math.ceil(files / FILES_PER_DIR);
   const width = Math.ceil(Math.cbrt(count));

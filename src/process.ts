@@ -10,7 +10,7 @@ import type { Alias } from './tsconfig.ts';
 
 export type FileEdit = { oldPath: string; newPath: string; text: string };
 
-// Worker に structured clone で渡せるよう、Map や関数を含めない
+// No Map or functions, so it can be passed to a Worker by structured clone
 export type ChunkInput = {
   moves: Move[];
   root: string;
@@ -28,13 +28,13 @@ export type ChunkOutput = {
   changes: Change[];
   suspects: Suspect[];
   warnings: string[];
-  // 読めない・解析できないなどで、書き換えなかったファイルの数
+  // Number of files left unchanged because they could not be read or parsed
   skipped: number;
 };
 
 const STRICT_UTF8 = new TextDecoder('utf-8', { fatal: true });
 
-// UTF-8 として読めないファイルは書き戻すと文字化けするので、undefined を返す
+// Returns undefined for files that are not valid UTF-8, since writing them back would corrupt them
 const readUtf8 = (file: string): string | undefined => {
   const buffer = readFileSync(toNative(file));
   const text = buffer.toString('utf8');

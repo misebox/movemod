@@ -8,13 +8,13 @@ export type FsIndex = {
   entries: (dir: string) => Entries;
   isFile: (path: string) => boolean;
   isDirectory: (path: string) => boolean;
-  // 読めなかったフォルダの警告。フォルダが無いだけのときは入らない
+  // Warnings for unreadable folders. Not added when the folder simply does not exist
   problems: () => string[];
 };
 
 const MISSING = new Set(['ENOENT', 'ENOTDIR']);
 
-// フォルダごとに readdir を 1 回だけ行い、結果を覚える。移動を始める前の状態を見るために使う
+// Runs readdir once per folder and caches the result. Used to see the state before any move starts
 export const createFsIndex = (): FsIndex => {
   const directories = new Map<string, Entries>();
   const problems: string[] = [];

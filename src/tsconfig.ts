@@ -16,21 +16,21 @@ type RawConfig = {
   };
 };
 
-// '*' で前後に分けたパス。'*' が無いときは wildcard が false
+// Path split around '*'. wildcard is false when there is no '*'
 export type PathPattern = { prefix: string; suffix: string; wildcard: boolean };
 
-// implicit は、baseUrl から暗黙に決まる alias（'components/Button' のように書く）。paths には書かれていない
+// implicit is an alias implied by baseUrl (written like 'components/Button'). It is not listed in paths
 export type Alias = PathPattern & { targets: PathPattern[]; implicit?: boolean };
 
 export type Project = {
   dir: string;
-  // tsconfig のあるフォルダからの相対パス
+  // Path relative to the tsconfig folder
   include: string[];
   exclude: string[];
   aliases: Alias[];
-  // 設定ファイルが無く、全ファイル・alias 無しで代用しているとき
+  // When there is no config file and all files with no aliases are used instead
   missing?: boolean;
-  // references があるが、辿らないとき
+  // When references exist but are not followed
   hasReferences?: boolean;
 };
 
@@ -57,7 +57,7 @@ const resolveExtends = (dir: string, reference: string): string => {
   }
 };
 
-// extends の先祖から順に、自分が最後になるように並べる
+// Ordered from the extends ancestors, with the file itself last
 const loadLayers = (file: string, chain: string[] = []): Layer[] => {
   if (chain.includes(file)) {
     throw new Error(`circular "extends": ${[...chain, file].join(' -> ')}`);
@@ -94,7 +94,7 @@ const splitWildcard = (value: string): PathPattern => {
 
 export const loadProject = (tsconfig: string): Project => {
   const dir = dirname(tsconfig);
-  // 設定ファイルが無いときは、alias 無しで全ファイルを対象にする
+  // With no config file, target all files with no aliases
   if (!existsSync(toNative(tsconfig))) {
     return { dir, include: ['**/*'], exclude: [], aliases: [], missing: true };
   }

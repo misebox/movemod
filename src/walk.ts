@@ -5,7 +5,7 @@ const ALWAYS_SKIPPED = new Set(['node_modules', '.git']);
 
 export const SOURCE_FILE = /\.[cm]?[jt]sx?$/;
 
-// root 以下のファイルを列挙する（node_modules と .git は常に除く）。root がファイルのときは、そのファイルだけ
+// Lists files under root (always excluding node_modules and .git). If root is a file, only that file
 export const walk = (
   fs: FsIndex,
   root: string,

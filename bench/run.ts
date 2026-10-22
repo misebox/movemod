@@ -1,9 +1,9 @@
-// 使い方:
-//   bun bench/run.ts --cmd '<コマンド>' [--files 10000] [--moves 100] [--runs 5]
+// Usage:
+//   bun bench/run.ts --cmd '<command>' [--files 10000] [--moves 100] [--runs 5]
 //
-// --cmd の {root} {tsconfig} {moves} は、生成したリポジトリのパスに置き換わる。
-// 作業フォルダは終了時（成功・失敗・Ctrl+C）に必ず削除する。
-// コマンドは同じリポジトリに対して --runs 回実行するので、dry-run で動かすこと。
+// {root} {tsconfig} {moves} in --cmd are replaced with paths in the generated repo.
+// The work folder is always deleted on exit (success, failure, Ctrl+C).
+// The command runs --runs times on the same repo, so run it as a dry-run.
 import { spawnSync } from 'node:child_process';
 import { parseArgs } from 'node:util';
 import { generateRepo } from './generate.ts';
@@ -23,7 +23,7 @@ const { values } = parseArgs({
 });
 
 if (!values.cmd) {
-  console.error('--cmd を指定してください');
+  console.error('--cmd is required');
   process.exit(1);
 }
 
@@ -35,7 +35,7 @@ const measure = (command: string, runs: number): number[] =>
     const result = spawnSync(command, { shell: true, encoding: 'utf8' });
     const elapsed = performance.now() - start;
     if (result.status !== 0) {
-      throw new Error(`コマンドが失敗しました (${result.status}):\n${result.stderr}`);
+      throw new Error(`Command failed (${result.status}):\n${result.stderr}`);
     }
     if (values.show) console.log(result.stdout);
     return elapsed;
@@ -59,7 +59,7 @@ try {
     seed: Number(values.seed),
   });
   console.log(
-    `生成: ${values.files} ファイル、移動 ${repo.moves} 件 (${Math.round(performance.now() - started)} ms)`,
+    `Generated: ${values.files} files, ${repo.moves} moves (${Math.round(performance.now() - started)} ms)`,
   );
 
   const command = values.cmd
@@ -68,9 +68,9 @@ try {
     .replaceAll('{moves}', `"${repo.movesFile}"`);
   const times = measure(command, Number(values.runs)).sort((a, b) => a - b);
   console.log(
-    `実行 ${times.length} 回: min ${Math.round(times[0])} ms / median ${Math.round(median(times))} ms / max ${Math.round(times[times.length - 1])} ms`,
+    `${times.length} runs: min ${Math.round(times[0])} ms / median ${Math.round(median(times))} ms / max ${Math.round(times[times.length - 1])} ms`,
   );
 } finally {
   cleanWorkDir();
-  console.log('作業フォルダを削除しました。');
+  console.log('Work folder deleted.');
 }

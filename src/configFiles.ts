@@ -1,7 +1,7 @@
 import { basename, dirname, relative, resolve } from 'node:path/posix';
 import { parseJsonc } from './jsonc.ts';
 
-// TS/JS 以外で、移動したパスを書いていそうなファイル
+// Non-TS/JS files that likely mention moved paths
 export const CONFIG_FILE =
   /^(?:package\.json|[jt]sconfig(?:\..+)?\.json|\.oxlintrc\.json|biome\.jsonc?|(?:vite|vitest|webpack|rollup|jest|eslint|playwright|tsup|astro|svelte|next|nuxt)\.config\.[cm]?[jt]s|.+\.ya?ml|Dockerfile.*)$/;
 
@@ -22,7 +22,7 @@ const lineOf = (text: string, index: number) => {
   return line;
 };
 
-// JSONC のコメントの範囲 [start, end)。文字列の中の // や /* は数えない
+// Ranges [start, end) of JSONC comments. // or /* inside strings are not counted
 const commentRanges = (text: string): [number, number][] => {
   const ranges: [number, number][] = [];
   let i = 0;
@@ -47,7 +47,7 @@ const commentRanges = (text: string): [number, number][] => {
   return ranges;
 };
 
-// "paths": { ... } の波括弧の範囲 [start, end)。tsconfig の paths の値は baseUrl 基準で読まれる
+// Range [start, end) of the braces in "paths": { ... }. Values in tsconfig paths are read relative to baseUrl
 const pathsRange = (text: string): [number, number] | undefined => {
   const open = /"paths"\s*:\s*\{/.exec(text);
   if (!open) return undefined;
@@ -83,9 +83,9 @@ const baseUrlOf = (text: string): string | undefined => {
 
 const EXPLICIT_RELATIVE = /^\.{1,2}(?:\/|$)/;
 
-// 値の文字列のうち、移動するパスを指すものを書き換える（キーとコメントは対象外）。変更が無ければ undefined。
-// ファイル自身が動くときは、./ や ../ で始まる実在するパスも、新しい位置から見たパスに直す。
-// tsconfig の paths の値は、baseUrl があればそこを基準に読む
+// Rewrites value strings that point to moved paths (keys and comments are skipped). Returns undefined if nothing changed.
+// When the file itself moves, existing paths starting with ./ or ../ are also rewritten relative to the new location.
+// Values in tsconfig paths are read relative to baseUrl if present
 export const rewriteJsonPaths = (
   file: string,
   text: string,
@@ -138,7 +138,7 @@ export const rewriteJsonPaths = (
   return { text: result, changedLines: new Set(edits.map((edit) => lineOf(text, edit.start))) };
 };
 
-// 移動元のパスを書いている行を探す。書き換え済みの行は含めない
+// Find lines that mention a source path. Rewritten lines are excluded
 export const findConfigHits = (options: {
   file: string;
   text: string;

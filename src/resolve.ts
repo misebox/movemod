@@ -15,7 +15,7 @@ const EXTENSIONS = [
   '.json',
 ];
 
-// 'x.js' と書いて x.ts を指す指定（ESM の書き方）
+// Specifier written as 'x.js' that points to x.ts (ESM style)
 const JS_TO_TS: Record<string, string[]> = {
   '.js': ['.ts', '.tsx'],
   '.jsx': ['.tsx'],
@@ -25,18 +25,18 @@ const JS_TO_TS: Record<string, string[]> = {
 
 const TS_EXTENSIONS = ['.tsx', '.ts', '.mts', '.cts'];
 
-// 指定子の書き方。移動後も同じ書き方で書き直すために覚えておく
-//   exact:     './x.json'   ファイル名そのもの
-//   extension: './x'        拡張子を省略
-//   index:     './x'        フォルダの index を指す
-//   js:        './x.js'     x.ts を .js と書いている
+// How the specifier is written. Remembered so it can be rewritten the same way after a move
+//   exact:     './x.json'   the file name itself
+//   extension: './x'        extension omitted
+//   index:     './x'        points to the folder's index
+//   js:        './x.js'     x.ts written as .js
 export type Resolved = {
   file: string;
   kind: 'exact' | 'extension' | 'index' | 'js';
   ext: string;
 };
 
-// 拡張子の補完や index の規則に従って、絶対パスを実在するファイルに解決する
+// Resolves an absolute path to an existing file using extension completion and index rules
 export const resolvePath = (fs: FsIndex, base: string): Resolved | undefined => {
   if (fs.isFile(base)) return { file: base, kind: 'exact', ext: '' };
 
@@ -62,7 +62,7 @@ export const resolvePath = (fs: FsIndex, base: string): Resolved | undefined => 
   return undefined;
 };
 
-// tsconfig の paths で書かれた指定子が指しうるパス（拡張子や index を補う前）。alias の順に並べる
+// Paths a specifier written via tsconfig paths can point to (before extension/index completion), in alias order
 export const aliasCandidates = (aliases: Alias[], specifier: string): string[] => {
   const bases: string[] = [];
   for (const alias of aliases) {
@@ -83,7 +83,7 @@ export const aliasCandidates = (aliases: Alias[], specifier: string): string[] =
   return bases;
 };
 
-// tsconfig の paths で書かれた指定子を解決する
+// Resolves a specifier written via tsconfig paths
 export const resolveAlias = (
   fs: FsIndex,
   aliases: Alias[],
@@ -99,7 +99,7 @@ export const resolveAlias = (
 const stripExtension = (path: string, ext: string) =>
   path.endsWith(ext) ? path.slice(0, -ext.length) : path;
 
-// 解決先が移動した後に、指定子が名指しするパス（拡張子や index の省略を反映したもの）
+// Path the specifier names after the target moves (reflecting omitted extension or index)
 export const specifierTarget = (resolved: Resolved, targetNew: string): string => {
   switch (resolved.kind) {
     case 'exact':

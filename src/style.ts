@@ -1,8 +1,8 @@
 import { relative } from 'node:path/posix';
 import type { Alias } from './tsconfig.ts';
 
-// shortest: './' を最優先し、'../' が必要なときは alias が短ければ alias
-// keep:     今の書き方（相対か alias か）を保つ
+// shortest: './' first; when '../' is needed, the alias if it is shorter
+// keep:     keeps the current form (relative or alias)
 export type Style = 'shortest' | 'keep';
 
 export type Origin = 'relative' | 'alias' | 'package';
@@ -19,7 +19,7 @@ export const relativeSpecifier = (fromDir: string, target: string): string => {
   return isRelative(path) ? path : `./${path}`;
 };
 
-// target を名指しできる alias のうち、いちばん短いもの
+// Shortest alias that can name target
 export const aliasSpecifier = (aliases: Alias[], target: string): string | undefined => {
   let best: string | undefined;
   for (const alias of aliases) {
