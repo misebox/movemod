@@ -1,7 +1,8 @@
 import { parseSync } from 'oxc-parser';
 
 // text は、クォートの内側の文字列。start と end も、クォートの内側の範囲
-export type Specifier = { text: string; start: number; end: number };
+// relativeOnly は、alias やパッケージ名では書けず、常にファイルからの相対パスで読まれる書き方
+export type Specifier = { text: string; start: number; end: number; relativeOnly?: boolean };
 
 // syntaxError は、パーサーが最初に報告したエラーの内容と行
 export type Collected = { specifiers: Specifier[]; syntaxError?: string };
@@ -57,7 +58,7 @@ const collectReferences = (source: string, add: (specifier: Specifier | undefine
   for (const match of source.matchAll(REFERENCE_PATH)) {
     const text = match[2];
     const start = match.index + match[0].lastIndexOf(text);
-    add({ text, start, end: start + text.length });
+    add({ text, start, end: start + text.length, relativeOnly: true });
   }
 };
 
@@ -158,7 +159,7 @@ export const collectSpecifiers = (
           textOf(args[1]) === 'import.meta.url' &&
           first?.text.startsWith('.')
         ) {
-          add(first);
+          add({ ...first, relativeOnly: true });
         }
         break;
       }

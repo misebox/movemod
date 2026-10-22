@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, renameSync } from 'node:fs';
 import { availableParallelism } from 'node:os';
-import { dirname, resolve } from 'node:path/posix';
+import { dirname, relative, resolve } from 'node:path/posix';
 import { Worker } from 'node:worker_threads';
 import {
   CONFIG_FILE,
@@ -99,14 +99,12 @@ const runInWorker = async (input: ChunkInput): Promise<ChunkOutput> => {
   }
 };
 
-const rel = (dir: string, path: string) =>
-  path.startsWith(`${dir}/`) ? path.slice(dir.length + 1) : null;
-
 const listProjectFiles = (fs: FsIndex, project: Project, seen: Set<string>): string[] => {
   const includes = project.include.map(compilePattern);
   const excludes = project.exclude.map(compilePattern);
-  const relative = (path: string) => rel(project.dir, path) ?? path;
-  const isExcluded = (path: string) => excludes.some((pattern) => pattern.test(relative(path)));
+  // tsconfig のあるフォルダの外のファイルは、'../shared/x.ts' のような相対パスで照合する
+  const relativeToProject = (path: string) => relative(project.dir, path);
+  const isExcluded = (path: string) => excludes.some((pattern) => pattern.test(relativeToProject(path)));
 
   const roots = [...new Set(project.include.map((pattern) => staticPrefix(pattern)))]
     .map((prefix) => resolve(project.dir, prefix || '.'))
@@ -116,13 +114,27 @@ const listProjectFiles = (fs: FsIndex, project: Project, seen: Set<string>): str
   const files: string[] = [];
   const add = (path: string, name: string) => {
     if (!SOURCE_FILE.test(name) || seen.has(path)) return;
-    const name_ = relative(path);
-    if (!includes.some((pattern) => pattern.test(name_)) || isExcluded(path)) return;
+    const projectRelative = relativeToProject(path);
+    if (!includes.some((pattern) => pattern.test(projectRelative)) || isExcluded(path)) return;
     seen.add(path);
     files.push(path);
   };
   for (const root of roots) walk(fs, root, isExcluded, add);
   return files;
+};
+
+// dist/ などに package.json の写しがあっても取り違えないよう、同じ名前ではいちばん浅いものを使う
+const dropDuplicateNames = (list: Pkg[], warnings: string[]): Pkg[] => {
+  const byName = new Map<string, Pkg>();
+  for (const pkg of [...list].sort((a, b) => a.dir.length - b.dir.length)) {
+    const kept = byName.get(pkg.name);
+    if (kept) {
+      warnings.push(`${pkg.dir}/package.json: ignored, same name as ${kept.dir}/package.json: ${pkg.name}`);
+    } else {
+      byName.set(pkg.name, pkg);
+    }
+  }
+  return [...byName.values()];
 };
 
 const timer = () => {
@@ -166,6 +178,7 @@ export const run = async (options: Options): Promise<Result> => {
     }
     if (CONFIG_FILE.test(name)) configFiles.push(path);
   });
+  const packages = dropDuplicateNames(packageList, scanWarnings);
   clock.lap('scan config files');
 
   const seen = new Set<string>();
@@ -195,7 +208,7 @@ export const run = async (options: Options): Promise<Result> => {
     realign,
     detail: options.detail ?? false,
     aliasesByProject: projects.map((project) => project.aliases),
-    packageList,
+    packageList: packages,
   };
   if (options.workers !== undefined && !isWorkerCount(options.workers)) {
     throw new Error(`workers must be a positive integer: ${options.workers}`);

@@ -3,7 +3,7 @@ import type { FsIndex } from './fsIndex.ts';
 import type { Packages } from './packages.ts';
 import { resolveAlias, resolvePath, specifierTarget, type Resolved } from './resolve.ts';
 import { buildAstTrigger, collectSpecifiers } from './specifiers.ts';
-import { chooseSpecifier, isRelative, type Origin, type Style } from './style.ts';
+import { chooseSpecifier, isRelative, relativeSpecifier, type Origin, type Style } from './style.ts';
 import { findSuspects, type Suspect } from './suspects.ts';
 import type { Alias } from './tsconfig.ts';
 
@@ -63,7 +63,7 @@ export const createProjectContext = (
   ];
   return {
     aliases,
-    prefilter: new RegExp(`['"\`](?:${heads.join('|')})`),
+    prefilter: new RegExp(`['"\`](?:${heads.join('|')})|///\\s*<reference\\s+path`),
     cache: new Map(),
   };
 };
@@ -100,8 +100,9 @@ export const createRewriter = (options: RewriterOptions) => {
     project: ProjectContext,
     dir: string,
     text: string,
+    forceRelative: boolean,
   ): Target | undefined => {
-    const relativeText = isRelative(text);
+    const relativeText = forceRelative || isRelative(text);
     const key = relativeText ? `${dir}\0${text}` : text;
     const cached = project.cache.get(key);
     if (cached !== undefined) return cached ?? undefined;
@@ -135,6 +136,17 @@ export const createRewriter = (options: RewriterOptions) => {
     const pkg = packages.byName.get(parts.slice(0, nameLength).join('/'));
     if (!pkg) return undefined;
     return resolvePath(fs, `${pkg.dir}/${parts.slice(nameLength).join('/')}`);
+  };
+
+  // alias にもパッケージ名にもせず、元の書き方（./ を付けるかどうか）を保って相対パスにする
+  const relativeOnlySpecifier = (
+    original: string,
+    newPath: string,
+    resolved: Resolved,
+    mapPath: (path: string) => string,
+  ): string => {
+    const text = relativeSpecifier(dirname(newPath), specifierTarget(resolved, mapPath(resolved.file)));
+    return isRelative(original) || text.startsWith('../') ? text : text.replace(/^\.\//, '');
   };
 
   const nextSpecifier = (
@@ -190,9 +202,10 @@ export const createRewriter = (options: RewriterOptions) => {
 
       for (const specifier of specifiers) {
         known.add(specifier.start);
-        const target = resolveSpecifier(project, dir, specifier.text);
+        const relativeOnly = specifier.relativeOnly === true;
+        const target = resolveSpecifier(project, dir, specifier.text, relativeOnly);
         if (!target) {
-          if (isRelative(specifier.text)) {
+          if (relativeOnly || isRelative(specifier.text)) {
             const base = resolve(dir, specifier.text);
             if (fileMoved || map(base) !== base) {
               result.warnings.push(`${file}: cannot resolve: ${specifier.text}`);
@@ -210,7 +223,9 @@ export const createRewriter = (options: RewriterOptions) => {
             : targetMoved || (fileMoved && target.origin === 'package');
         if (!realign && !affected) continue;
 
-        const next = nextSpecifier(project, file, newPath, target);
+        const next = relativeOnly
+          ? relativeOnlySpecifier(specifier.text, newPath, target.resolved, map)
+          : nextSpecifier(project, file, newPath, target);
         if (next === specifier.text) continue;
         replacements.push({ start: specifier.start, end: specifier.end, text: next });
         result.changes.push({
