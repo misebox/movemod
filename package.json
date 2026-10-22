@@ -1,6 +1,6 @@
 {
   "name": "movemod",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "type": "module",
   "description": "Move TS/JS files and folders, and rewrite the imports that point to them",
   "license": "MIT",
