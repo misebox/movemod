@@ -86,6 +86,13 @@ Targets: `darwin-arm64`, `darwin-x64`, `linux-arm64`, `linux-x64`, `linux-arm64-
 | Option | Description |
 |---|---|
 | `--dry-run` | Show what would change; change nothing |
-| `--tsconfig <path>` | tsconfig that selects the files to rewrite. Default: `./tsconfig.json` |
+| `--tsconfig <path>` | tsconfig or jsconfig that selects the files to rewrite. Repeatable. Default: `./tsconfig.json`, else `./jsconfig.json`. With neither, all files are rewritten and aliases are not resolved |
 | `--bulk-list <path>` | File with a list of moves, one `<from> <to>` per line. Lines starting with `#` are ignored |
-| `--func <name>` | Also rewrite the path in the first argument of this function, e.g. `loadModule('./foo')`. `require`, `import()`, `vi.mock` and `jest.mock` are built in |
+| `--style <shortest\|keep>` | Import style. See above. Default: `shortest` |
+| `--func <name>` | Also rewrite the path in the first argument of this function, e.g. `loadModule('./foo')`. `require`, `require.resolve`, `import()`, `import.meta.resolve`, `new URL(..., import.meta.url)`, `vi.*` and `jest.*` mocks are built in. Repeatable |
+| `--include <path>` | Extra file or folder to rewrite that the tsconfig does not cover. Repeatable |
+| `--root <dir>` | Where to look for `package.json` and config files. Default: working directory |
+| `--workers <n>` | Worker threads. `1` disables. Default: chosen from the file count |
+| `--verbose` | List every changed line |
+| `--timing` | Show the time of each stage |
+| `--json` | Print the result as JSON |
