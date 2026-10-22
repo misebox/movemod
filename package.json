@@ -3,6 +3,30 @@
   "version": "0.1.0",
   "type": "module",
   "description": "Move TS/JS files and folders, and rewrite the imports that point to them",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/misebox/tsmv.git"
+  },
+  "homepage": "https://github.com/misebox/tsmv#readme",
+  "bugs": "https://github.com/misebox/tsmv/issues",
+  "keywords": [
+    "typescript",
+    "javascript",
+    "move",
+    "rename",
+    "refactor",
+    "refactoring",
+    "codemod",
+    "import",
+    "imports",
+    "require",
+    "paths",
+    "alias",
+    "tsconfig",
+    "cli",
+    "mv"
+  ],
   "bin": {
     "tsmv": "dist/cli.js"
   },
