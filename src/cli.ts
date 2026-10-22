@@ -35,6 +35,7 @@ Options:
   --verbose                 list every changed line
   --timing                  show the time of each stage
   --json                    print the result as JSON
+  --strict                  exit with 1 when there are warnings (skipped files, unresolved imports)
   -h, --help                show this help`;
 
 const parse = () =>
@@ -53,6 +54,7 @@ const parse = () =>
       verbose: { type: 'boolean' },
       timing: { type: 'boolean' },
       json: { type: 'boolean' },
+      strict: { type: 'boolean' },
     },
   });
 
@@ -137,9 +139,11 @@ const plural = (count: number, word: string) => `${count} ${word}${count === 1 ?
 try {
   const result = await run(options);
 
+  const exitCode = values.strict && result.warnings.length > 0 ? 1 : 0;
+
   if (values.json) {
     print(JSON.stringify(result, null, 2));
-    process.exit(0);
+    process.exit(exitCode);
   }
 
   for (const { from, to } of moves) print(`${show(from)} -> ${show(to)}`);
@@ -183,6 +187,7 @@ try {
       print(`  ${label}: ${Math.round(ms)} ms`);
     }
   }
+  process.exitCode = exitCode;
 } catch (error) {
   fail(error instanceof Error ? error.message : String(error));
 }

@@ -96,3 +96,4 @@ Targets: `darwin-arm64`, `darwin-x64`, `linux-arm64`, `linux-x64`, `linux-arm64-
 | `--verbose` | List every changed line |
 | `--timing` | Show the time of each stage |
 | `--json` | Print the result as JSON |
+| `--strict` | Exit with 1 when there are warnings (skipped files, unresolved imports) |
