@@ -7,17 +7,19 @@ export type Pkg = { name: string; dir: string };
 export type Packages = {
   byName: Map<string, Pkg>;
   names: string[];
-  // 移動前・移動後のパスを含む、いちばん近いパッケージ
+  // path を含むいちばん近いパッケージ。Before は移動前の位置、After は移動後の位置で探す
   nearestBefore: (path: string) => Pkg | undefined;
   nearestAfter: (path: string) => Pkg | undefined;
   dirAfter: (pkg: Pkg) => string;
 };
 
-export const readPackage = (packageJson: string): Pkg | undefined => {
+// name が無い package.json はパッケージではない。読めない・JSON として不正なときは警告する
+export const readPackage = (packageJson: string, warn: (message: string) => void): Pkg | undefined => {
   try {
     const { name } = JSON.parse(readFileSync(toNative(packageJson), 'utf8')) as { name?: unknown };
     return typeof name === 'string' ? { name, dir: dirname(packageJson) } : undefined;
-  } catch {
+  } catch (error) {
+    warn(`${packageJson}: skipped, cannot read: ${error instanceof Error ? error.message : error}`);
     return undefined;
   }
 };

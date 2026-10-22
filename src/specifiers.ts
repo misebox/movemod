@@ -3,7 +3,8 @@ import { parseSync } from 'oxc-parser';
 // text は、クォートの内側の文字列。start と end も、クォートの内側の範囲
 export type Specifier = { text: string; start: number; end: number };
 
-export type Collected = { specifiers: Specifier[]; hasSyntaxError: boolean };
+// syntaxError は、パーサーが最初に報告したエラーの内容と行
+export type Collected = { specifiers: Specifier[]; syntaxError?: string };
 
 // 第 1 引数をモジュール指定子として扱う関数
 export const DEFAULT_CALLS = [
@@ -72,7 +73,12 @@ export const collectSpecifiers = (
   calls: string[],
 ): Collected => {
   const result = parseSync(file, source);
-  const hasSyntaxError = result.errors.length > 0;
+  const firstError = result.errors[0];
+  if (firstError) {
+    const offset = firstError.labels[0]?.start ?? 0;
+    const line = source.slice(0, offset).split('\n').length;
+    return { specifiers: [], syntaxError: `${firstError.message} (line ${line})` };
+  }
   const specifiers: Specifier[] = [];
   const seen = new Set<number>();
 
@@ -98,7 +104,7 @@ export const collectSpecifiers = (
       }
     }
     for (const item of module.dynamicImports) addRange(item.moduleRequest);
-    return { specifiers, hasSyntaxError };
+    return { specifiers };
   }
 
   const calleeNames = new Set([...MODULE_PATH_CALLS, ...calls]);
@@ -164,5 +170,5 @@ export const collectSpecifiers = (
   };
 
   visit(result.program);
-  return { specifiers, hasSyntaxError };
+  return { specifiers };
 };

@@ -123,6 +123,10 @@ export const createRewriter = (options: RewriterOptions) => {
     return target;
   };
 
+  const isAliasOrPackage = (project: ProjectContext, text: string) =>
+    project.aliases.some((alias) => alias.prefix !== '' && text.startsWith(alias.prefix)) ||
+    packages.names.some((name) => text.startsWith(`${name}/`));
+
   // ワークスペース内のパッケージ名で書かれた、パッケージの中身への指定子
   const resolvePackage = (text: string): Resolved | undefined => {
     const parts = text.split('/');
@@ -173,13 +177,16 @@ export const createRewriter = (options: RewriterOptions) => {
     const known = new Set<number>();
 
     if (project.prefilter.test(source)) {
-      const { specifiers, hasSyntaxError } = collectSpecifiers(
+      const { specifiers, syntaxError } = collectSpecifiers(
         file,
         source,
         trigger,
         options.calls,
       );
-      if (hasSyntaxError) result.warnings.push(`${file}: syntax error`);
+      if (syntaxError) {
+        result.warnings.push(`${file}: skipped, syntax error: ${syntaxError}`);
+        return result;
+      }
 
       for (const specifier of specifiers) {
         known.add(specifier.start);
@@ -190,6 +197,8 @@ export const createRewriter = (options: RewriterOptions) => {
             if (fileMoved || map(base) !== base) {
               result.warnings.push(`${file}: cannot resolve: ${specifier.text}`);
             }
+          } else if (!realign && isAliasOrPackage(project, specifier.text)) {
+            result.warnings.push(`${file}: cannot resolve: ${specifier.text}`);
           }
           continue;
         }

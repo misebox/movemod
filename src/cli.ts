@@ -1,27 +1,8 @@
 #!/usr/bin/env node
-// Usage:
-//   movemod <from> <to> [<from> <to> ...]  move files or folders and rewrite imports; <to> is the new path itself
-//   movemod --bulk-list <path>             read the moves from a file, one "<from> <to>" per line
-//   movemod <path>                         normalize the import style inside a file or folder
-//                                          use `movemod .` for everything (for example after adding an alias)
-//   with no arguments, nothing happens
-//
-// Options:
-//   --dry-run                  show what would change; change nothing
-//   --style <shortest|keep>    shortest: `./` first; when `../` is needed, the shorter of relative and alias (default)
-//                              keep: keep each import's current style
-//   --tsconfig <path>          tsconfig that selects the files to rewrite (repeatable; default ./tsconfig.json)
-//   --bulk-list <path>         file with a list of moves, one "<from> <to>" per line; lines starting with # are ignored
-//   --func <name>              also rewrite the path in the first argument of this function, e.g. loadModule (repeatable)
-//   --include <path>           extra file or folder to rewrite that the tsconfig does not cover (repeatable)
-//   --root <dir>               where to look for package.json and config files (default: cwd)
-//   --workers <n>              number of worker threads (default: from file count and CPU count; 1 disables)
-//   --verbose                  list every changed line
-//   --timing                   show the time of each stage
-//   --json                     print the result as JSON
 import { existsSync, readFileSync } from 'node:fs';
 import { relative } from 'node:path/posix';
 import { parseArgs } from 'node:util';
+import { parseBulkList, parseWorkers } from './args.ts';
 import { run, type Options } from './engine.ts';
 import { resolveInput, toNative, toNativeText } from './paths.ts';
 import type { Style } from './style.ts';
@@ -43,9 +24,9 @@ Usage:
 
 Options:
   --dry-run                 show what would change; change nothing
-  --bulk-list <path>        file with moves, one "<from> <to>" per line; "#" starts a comment
+  --bulk-list <path>        file with moves, one "<from> <to>" per line; lines starting with "#" are ignored
   --style <shortest|keep>   shortest: relative first, alias when shorter (default); keep: keep each import's style
-  --tsconfig <path>         tsconfig or jsconfig that selects the files (default: ./tsconfig.json, ./jsconfig.json)
+  --tsconfig <path>         tsconfig or jsconfig that selects the files (repeatable; default: ./tsconfig.json, else ./jsconfig.json)
   --func <name>             also rewrite the path in the first argument of this function, e.g. loadModule (repeatable)
                             built in: require, import(), vi.mock, jest.mock
   --include <path>          extra file or folder to rewrite (repeatable)
@@ -90,21 +71,24 @@ if (values.help) {
 const style = values.style ?? 'shortest';
 if (style !== 'shortest' && style !== 'keep') fail('--style must be shortest or keep');
 
+const requireExisting = (label: string, path: string) => {
+  if (!existsSync(toNative(path))) fail(`${label} not found: ${path}`);
+};
+
 const bulkList = values['bulk-list'];
 const scope = positionals.length === 1 && !bulkList ? positionals.map(resolveInput) : undefined;
 const paths = scope ? [] : [...positionals];
 if (bulkList) {
-  for (const line of readFileSync(bulkList, 'utf8').split('\n')) {
-    const text = line.trim();
-    if (text === '' || text.startsWith('#')) continue;
-    const [from, to, ...rest] = text.split(/\s+/);
-    if (!to || rest.length > 0) fail(`cannot read this line of the bulk list: ${line}`);
-    paths.push(from, to);
+  try {
+    paths.push(...parseBulkList(readFileSync(bulkList, 'utf8')));
+  } catch (error) {
+    fail(`${bulkList}: ${error instanceof Error ? error.message : error}`);
   }
 }
 if (!scope && paths.length === 0) {
   fail(USAGE);
 }
+for (const path of scope ?? []) requireExisting('path', path);
 if (paths.length % 2 !== 0) fail('give sources and destinations in pairs: <from> <to>');
 
 const moves = [];
@@ -120,16 +104,28 @@ if (values.tsconfig) {
   }
 }
 
+const root = resolveInput(values.root ?? '.');
+requireExisting('--root', root);
+const includes = (values.include ?? []).map(resolveInput);
+for (const include of includes) requireExisting('--include', include);
+
+let workers: number | undefined;
+try {
+  workers = parseWorkers(values.workers);
+} catch (error) {
+  fail(error instanceof Error ? error.message : String(error));
+}
+
 const dryRun = values['dry-run'] ?? false;
 const options: Options = {
   moves,
   scope,
   tsconfigs,
-  root: resolveInput(values.root ?? '.'),
-  includes: (values.include ?? []).map(resolveInput),
+  root,
+  includes,
   calls: values.func ?? [],
   style: style as Style,
-  workers: values.workers === undefined ? undefined : Number(values.workers),
+  workers,
   detail: dryRun || (values.verbose ?? false),
   apply: !dryRun,
 };

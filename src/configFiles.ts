@@ -4,7 +4,6 @@ import { dirname, relative, resolve } from 'node:path/posix';
 export const CONFIG_FILE =
   /^(?:package\.json|[jt]sconfig(?:\..+)?\.json|\.oxlintrc\.json|biome\.jsonc?|(?:vite|vitest|webpack|rollup|jest|eslint|playwright|tsup|astro|svelte|next|nuxt)\.config\.[cm]?[jt]s|.+\.ya?ml|Dockerfile.*)$/;
 
-// 確実に書き換えられる JSON
 export const REWRITABLE_JSON = /^(?:package\.json|[jt]sconfig(?:\..+)?\.json)$/;
 
 export type ConfigHit = { file: string; line: number; text: string };

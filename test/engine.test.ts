@@ -1,44 +1,10 @@
 import { afterEach, describe, expect, test } from 'bun:test';
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync, existsSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { existsSync } from 'node:fs';
+import { join } from 'node:path';
 import { run } from '../src/engine.ts';
+import { base, cleanFixtures, fixture, read, TSCONFIG } from './fixture.ts';
 
-const WORK = join(import.meta.dirname, '.work');
-const created: string[] = [];
-
-const fixture = (files: Record<string, string>): string => {
-  mkdirSync(WORK, { recursive: true });
-  const root = mkdtempSync(join(WORK, 'case-'));
-  created.push(root);
-  for (const [path, text] of Object.entries(files)) {
-    mkdirSync(dirname(join(root, path)), { recursive: true });
-    writeFileSync(join(root, path), text);
-  }
-  return root;
-};
-
-afterEach(() => {
-  for (const root of created.splice(0)) rmSync(root, { recursive: true, force: true });
-  if (existsSync(WORK)) rmSync(WORK, { recursive: true, force: true });
-});
-
-const read = (root: string, path: string) => readFileSync(join(root, path), 'utf8');
-
-const TSCONFIG = JSON.stringify({
-  compilerOptions: { paths: { '@/*': ['./src/*'] } },
-  include: ['src'],
-});
-
-const base = (root: string, extra: Partial<Parameters<typeof run>[0]> = {}) => ({
-  moves: [],
-  tsconfigs: [join(root, 'tsconfig.json')],
-  root,
-  includes: [],
-  calls: [],
-  style: 'shortest' as const,
-  apply: true,
-  ...extra,
-});
+afterEach(cleanFixtures);
 
 describe('mv', () => {
   test('ファイルを動かすと、動かしたファイルと参照元の相対 import が直る', async () => {

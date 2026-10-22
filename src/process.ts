@@ -10,7 +10,7 @@ import type { Alias } from './tsconfig.ts';
 
 export type FileEdit = { oldPath: string; newPath: string; text: string };
 
-// Worker に structured clone で渡せるよう、文字列と配列だけで作る
+// Worker に structured clone で渡せるよう、Map や関数を含めない
 export type ChunkInput = {
   moves: Move[];
   root: string;
@@ -28,6 +28,21 @@ export type ChunkOutput = {
   changes: Change[];
   suspects: Suspect[];
   warnings: string[];
+};
+
+const STRICT_UTF8 = new TextDecoder('utf-8', { fatal: true });
+
+// UTF-8 として読めないファイルは書き戻すと文字化けするので、undefined を返す
+const readUtf8 = (file: string): string | undefined => {
+  const buffer = readFileSync(toNative(file));
+  const text = buffer.toString('utf8');
+  if (!text.includes('�')) return text;
+  try {
+    STRICT_UTF8.decode(buffer);
+    return text;
+  } catch {
+    return undefined;
+  }
 };
 
 export const processChunk = (input: ChunkInput, fs: FsIndex = createFsIndex()): ChunkOutput => {
@@ -50,14 +65,24 @@ export const processChunk = (input: ChunkInput, fs: FsIndex = createFsIndex()): 
 
   const output: ChunkOutput = { edits: [], changes: [], suspects: [], warnings: [] };
   for (const { file, index } of input.targets) {
-    const result = rewrite(file, readFileSync(toNative(file), 'utf8'), contexts[index]);
-    if (!result) continue;
-    output.changes.push(...result.changes);
-    output.suspects.push(...result.suspects);
-    output.warnings.push(...result.warnings);
-    if (result.text !== undefined) {
-      output.edits.push({ oldPath: file, newPath: map(file), text: result.text });
+    try {
+      const source = readUtf8(file);
+      if (source === undefined) {
+        output.warnings.push(`${file}: skipped, not valid UTF-8`);
+        continue;
+      }
+      const result = rewrite(file, source, contexts[index]);
+      if (!result) continue;
+      output.changes.push(...result.changes);
+      output.suspects.push(...result.suspects);
+      output.warnings.push(...result.warnings);
+      if (result.text !== undefined) {
+        output.edits.push({ oldPath: file, newPath: map(file), text: result.text });
+      }
+    } catch (error) {
+      output.warnings.push(`${file}: skipped, ${error instanceof Error ? error.message : error}`);
     }
   }
+  output.warnings.push(...fs.problems());
   return output;
 };

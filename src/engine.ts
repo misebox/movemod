@@ -65,6 +65,8 @@ const READ_CONCURRENCY = 64;
 const WORKER_MIN_FILES = 3000;
 const MAX_WORKERS = 4;
 
+export const isWorkerCount = (value: number) => Number.isInteger(value) && value >= 1;
+
 const defaultWorkerCount = (files: number) =>
   files < WORKER_MIN_FILES ? 1 : Math.min(availableParallelism(), MAX_WORKERS);
 
@@ -82,21 +84,24 @@ const WORKER_URL = new URL(
   import.meta.url,
 );
 
-const runInWorker = (input: ChunkInput): Promise<ChunkOutput> =>
-  new Promise((resolvePromise, reject) => {
-    const worker = new Worker(WORKER_URL);
-    worker.once('message', (output: ChunkOutput) => {
-      resolvePromise(output);
-      void worker.terminate();
+const runInWorker = async (input: ChunkInput): Promise<ChunkOutput> => {
+  const worker = new Worker(WORKER_URL);
+  try {
+    return await new Promise<ChunkOutput>((resolvePromise, reject) => {
+      worker.once('message', resolvePromise);
+      worker.once('error', reject);
+      worker.once('messageerror', reject);
+      worker.once('exit', (code) => reject(new Error(`worker exited with code ${code}`)));
+      worker.postMessage(input);
     });
-    worker.once('error', reject);
-    worker.postMessage(input);
-  });
+  } finally {
+    await worker.terminate();
+  }
+};
 
-const rel =(dir: string, path: string) =>
+const rel = (dir: string, path: string) =>
   path.startsWith(`${dir}/`) ? path.slice(dir.length + 1) : null;
 
-// tsconfig の include と exclude に合うソースファイルを集める
 const listProjectFiles = (fs: FsIndex, project: Project, seen: Set<string>): string[] => {
   const includes = project.include.map(compilePattern);
   const excludes = project.exclude.map(compilePattern);
@@ -145,11 +150,18 @@ export const run = async (options: Options): Promise<Result> => {
   const projects = options.tsconfigs.map((tsconfig) => loadProject(resolve(tsconfig)));
   clock.lap('tsconfig');
 
+  const scanWarnings: string[] = [];
+  for (const [index, project] of projects.entries()) {
+    const config = options.tsconfigs[index];
+    if (project.missing) scanWarnings.push(`${config}: not found; aliases are not resolved`);
+    if (project.hasReferences) scanWarnings.push(`${config}: "references" are not followed`);
+  }
+
   const packageList: Pkg[] = [];
   const configFiles: string[] = [];
   walk(fs, root, () => false, (path, name) => {
     if (name === 'package.json' && dirname(path) !== root) {
-      const pkg = readPackage(path);
+      const pkg = readPackage(path, (message) => scanWarnings.push(message));
       if (pkg) packageList.push(pkg);
     }
     if (CONFIG_FILE.test(name)) configFiles.push(path);
@@ -185,20 +197,28 @@ export const run = async (options: Options): Promise<Result> => {
     aliasesByProject: projects.map((project) => project.aliases),
     packageList,
   };
+  if (options.workers !== undefined && !isWorkerCount(options.workers)) {
+    throw new Error(`workers must be a positive integer: ${options.workers}`);
+  }
   const workerCount = options.workers ?? defaultWorkerCount(targets.length);
-  const outputs =
-    workerCount <= 1
-      ? [processChunk({ ...input, targets }, fs)]
-      : await Promise.all(
-          splitEvenly(targets, workerCount).map((chunk) =>
-            runInWorker({ ...input, targets: chunk }),
-          ),
-        );
+  let outputs: ChunkOutput[];
+  if (workerCount <= 1) {
+    outputs = [processChunk({ ...input, targets }, fs)];
+  } else {
+    const chunks = splitEvenly(targets, workerCount);
+    if (chunks.flat().length !== targets.length) throw new Error('internal error: files were lost when splitting the work');
+    outputs = await Promise.all(chunks.map((chunk) => runInWorker({ ...input, targets: chunk })));
+  }
 
   const edits: FileEdit[] = outputs.flatMap((output) => output.edits);
   const changes: Change[] = outputs.flatMap((output) => output.changes);
   const suspects: Suspect[] = outputs.flatMap((output) => output.suspects);
-  const warnings: string[] = outputs.flatMap((output) => output.warnings);
+  const warnings: string[] = [
+    ...new Set([...scanWarnings, ...fs.problems(), ...outputs.flatMap((output) => output.warnings)]),
+  ];
+  if (targets.length === 0) {
+    warnings.push('no source files to process; check --tsconfig, --include or the path');
+  }
   clock.lap('read and rewrite');
 
   const configHits: ConfigHit[] = [];
@@ -206,7 +226,13 @@ export const run = async (options: Options): Promise<Result> => {
   if (!realign) {
     const froms = moves.map(({ from }) => from);
     await forEachLimit(configFiles, READ_CONCURRENCY, async (file) => {
-      const text = await readText(file);
+      let text: string;
+      try {
+        text = await readText(file);
+      } catch (error) {
+        warnings.push(`${file}: skipped, ${error instanceof Error ? error.message : error}`);
+        return;
+      }
       const name = file.slice(file.lastIndexOf('/') + 1);
       const edit = REWRITABLE_JSON.test(name) ? rewriteJsonPaths(file, text, map) : undefined;
       if (edit) {
@@ -221,12 +247,25 @@ export const run = async (options: Options): Promise<Result> => {
   clock.lap('config files');
 
   if (options.apply) {
-    const deepestFirst = [...moves].sort((a, b) => b.from.length - a.from.length);
-    for (const { from, to } of deepestFirst) {
-      mkdirSync(toNative(dirname(to)), { recursive: true });
-      renameSync(toNative(from), toNative(to));
+    let moved = 0;
+    let written = 0;
+    try {
+      const deepestFirst = [...moves].sort((a, b) => b.from.length - a.from.length);
+      for (const { from, to } of deepestFirst) {
+        mkdirSync(toNative(dirname(to)), { recursive: true });
+        renameSync(toNative(from), toNative(to));
+        moved++;
+      }
+      await forEachLimit(edits, READ_CONCURRENCY, async ({ newPath, text }) => {
+        await writeText(newPath, text);
+        written++;
+      });
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error);
+      throw new Error(
+        `${reason}\nStopped part way: moved ${moved} of ${moves.length} paths, wrote ${written} of ${edits.length} files. Imports may be only partly updated.`,
+      );
     }
-    await forEachLimit(edits, READ_CONCURRENCY, ({ newPath, text }) => writeText(newPath, text));
   }
   clock.lap('write');
 
