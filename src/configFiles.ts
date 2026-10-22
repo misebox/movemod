@@ -58,6 +58,11 @@ const pathsRange = (text: string): [number, number] | undefined => {
     if (char === '"') {
       i++;
       while (i < text.length && text[i] !== '"') i += text[i] === '\\' ? 2 : 1;
+    } else if (char === '/' && text[i + 1] === '/') {
+      while (i < text.length && text[i] !== '\n') i++;
+    } else if (char === '/' && text[i + 1] === '*') {
+      const end = text.indexOf('*/', i + 2);
+      i = end === -1 ? text.length : end + 1;
     } else if (char === '{') {
       depth++;
     } else if (char === '}' && --depth === 0) {
@@ -76,7 +81,7 @@ const baseUrlOf = (text: string): string | undefined => {
   }
 };
 
-const EXPLICIT_RELATIVE = /^\.{1,2}\//;
+const EXPLICIT_RELATIVE = /^\.{1,2}(?:\/|$)/;
 
 // 値の文字列のうち、移動するパスを指すものを書き換える（キーとコメントは対象外）。変更が無ければ undefined。
 // ファイル自身が動くときは、./ や ../ で始まる実在するパスも、新しい位置から見たパスに直す。
@@ -88,7 +93,7 @@ export const rewriteJsonPaths = (
   exists: (path: string) => boolean,
 ): ConfigEdit | undefined => {
   const dir = dirname(file);
-  const dirAfter = map(dir);
+  const dirAfter = dirname(map(file));
   const edits: { start: number; end: number; text: string }[] = [];
   const comments = commentRanges(text);
   const inPaths = /^[jt]sconfig/.test(basename(file)) ? pathsRange(text) : undefined;
@@ -103,7 +108,7 @@ export const rewriteJsonPaths = (
 
     const globAt = value.search(/[*?{]/);
     const head = (globAt === -1 ? value : value.slice(0, globAt)).replace(/\/+$/, '');
-    if (head === '' || head === '.' || head === '..') continue;
+    if (head === '') continue;
 
     const insidePaths = inPaths !== undefined && match.index >= inPaths[0] && match.index < inPaths[1];
     const base = insidePaths ? pathsBase : dir;
@@ -114,8 +119,8 @@ export const rewriteJsonPaths = (
       baseAfter !== base && EXPLICIT_RELATIVE.test(value) && exists(absolute);
     if (absoluteAfter === absolute && !relativeChanged) continue;
 
-    let next = relative(baseAfter, absoluteAfter);
-    if (value.startsWith('./') && !next.startsWith('.')) next = `./${next}`;
+    let next = relative(baseAfter, absoluteAfter) || '.';
+    if (EXPLICIT_RELATIVE.test(value) && !next.startsWith('.')) next = `./${next}`;
     const rewritten = next + value.slice(head.length);
     if (rewritten === value) continue;
     edits.push({
