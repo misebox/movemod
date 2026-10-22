@@ -21,7 +21,32 @@ const lineOf = (text: string, index: number) => {
   return line;
 };
 
-// 値の文字列のうち、移動するパスを指すものを書き換える（キーは対象外）。変更が無ければ undefined
+// JSONC のコメントの範囲 [start, end)。文字列の中の // や /* は数えない
+const commentRanges = (text: string): [number, number][] => {
+  const ranges: [number, number][] = [];
+  let i = 0;
+  while (i < text.length) {
+    const char = text[i];
+    if (char === '"') {
+      i++;
+      while (i < text.length && text[i] !== '"' && text[i] !== '\n') i += text[i] === '\\' ? 2 : 1;
+      i++;
+    } else if (char === '/' && text[i + 1] === '/') {
+      const end = text.indexOf('\n', i);
+      ranges.push([i, end === -1 ? text.length : end]);
+      i = end === -1 ? text.length : end;
+    } else if (char === '/' && text[i + 1] === '*') {
+      const end = text.indexOf('*/', i + 2);
+      ranges.push([i, end === -1 ? text.length : end + 2]);
+      i = end === -1 ? text.length : end + 2;
+    } else {
+      i++;
+    }
+  }
+  return ranges;
+};
+
+// 値の文字列のうち、移動するパスを指すものを書き換える（キーとコメントは対象外）。変更が無ければ undefined
 export const rewriteJsonPaths = (
   file: string,
   text: string,
@@ -30,10 +55,12 @@ export const rewriteJsonPaths = (
   const dir = dirname(file);
   const dirAfter = map(dir);
   const edits: { start: number; end: number; text: string }[] = [];
+  const comments = commentRanges(text);
 
   for (const match of text.matchAll(JSON_STRING)) {
     const value = match[1];
     if (match[2] || !PATH_LIKE.test(value)) continue;
+    if (comments.some(([start, end]) => match.index >= start && match.index < end)) continue;
 
     const globAt = value.search(/[*?{]/);
     const head = (globAt === -1 ? value : value.slice(0, globAt)).replace(/\/+$/, '');
