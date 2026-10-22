@@ -28,17 +28,27 @@ export const createPathMapper = (moves: Move[]) => {
   };
 };
 
-// 移動先が別の移動元の中にある場合などを、O(件数 × 深さ) で調べる
+// 移動先が別の移動元の中にある場合などを、O(件数 × 深さ) で調べる。
+// exists は大文字小文字を区別しないファイルシステムでは区別しないので、isExactCase でディスク上の綴りと照合する
 export const checkMoves = (
   moves: Move[],
   exists: (path: string) => boolean,
+  isExactCase: (path: string) => boolean = () => true,
 ): void => {
   const problems: string[] = [];
   const froms = new Set<string>();
   const tos = new Set<string>();
   for (const { from, to } of moves) {
-    if (!exists(from)) problems.push(`source does not exist: ${from}`);
-    if (exists(to)) problems.push(`destination already exists: ${to}`);
+    if (!exists(from)) {
+      problems.push(`source does not exist: ${from}`);
+    } else if (!isExactCase(from)) {
+      problems.push(`source differs in letter case from the one on disk: ${from}`);
+    }
+    // 大文字小文字だけを変える移動は、同じファイルを指しているので上書きではない
+    const renamesCaseOnly = from !== to && from.toLowerCase() === to.toLowerCase();
+    if (exists(to) && !(renamesCaseOnly && !isExactCase(to))) {
+      problems.push(`destination already exists: ${to}`);
+    }
     if (froms.has(from)) problems.push(`duplicate source: ${from}`);
     if (tos.has(to)) problems.push(`duplicate destination: ${to}`);
     froms.add(from);

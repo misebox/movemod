@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, renameSync } from 'node:fs';
 import { availableParallelism } from 'node:os';
-import { dirname, relative, resolve } from 'node:path/posix';
+import { basename, dirname, relative, resolve } from 'node:path/posix';
 import { Worker } from 'node:worker_threads';
 import {
   CONFIG_FILE,
@@ -153,9 +153,13 @@ const timer = () => {
 export const run = async (options: Options): Promise<Result> => {
   const clock = timer();
   const moves = options.moves.map(({ from, to }) => ({ from: resolve(from), to: resolve(to) }));
-  checkMoves(moves, (path) => existsSync(toNative(path)));
-  const map = createPathMapper(moves);
   const fs = createFsIndex();
+  checkMoves(
+    moves,
+    (path) => existsSync(toNative(path)),
+    (path) => fs.entries(dirname(path)).has(basename(path)),
+  );
+  const map = createPathMapper(moves);
   const root = resolve(options.root);
   const realign = moves.length === 0;
 
@@ -247,7 +251,9 @@ export const run = async (options: Options): Promise<Result> => {
         return;
       }
       const name = file.slice(file.lastIndexOf('/') + 1);
-      const edit = REWRITABLE_JSON.test(name) ? rewriteJsonPaths(file, text, map) : undefined;
+      const edit = REWRITABLE_JSON.test(name)
+        ? rewriteJsonPaths(file, text, map, (path) => existsSync(toNative(path)))
+        : undefined;
       if (edit) {
         edits.push({ oldPath: file, newPath: map(file), text: edit.text });
         configFilesChanged.push(file);
