@@ -15,6 +15,7 @@ import { forEachLimit, readText, writeText } from './io.ts';
 import { toNative } from './paths.ts';
 import { readPackage, type Pkg } from './packages.ts';
 import { checkMoves, createPathMapper, type Move } from './pathMapper.ts';
+import { checkInsideRoot } from './root.ts';
 import {
   processChunk,
   type ChunkInput,
@@ -25,7 +26,7 @@ import type { Change } from './rewriter.ts';
 import { DEFAULT_CALLS } from './specifiers.ts';
 import type { Style } from './style.ts';
 import type { Suspect } from './suspects.ts';
-import { loadProject, type Project } from './tsconfig.ts';
+import { loadProjects, type Project } from './tsconfig.ts';
 import { SOURCE_FILE, walk } from './walk.ts';
 
 export type Options = {
@@ -170,23 +171,24 @@ export const run = async (options: Options): Promise<Result> => {
   const clock = timer();
   const moves = options.moves.map(({ from, to }) => ({ from: resolve(from), to: resolve(to) }));
   const fs = createFsIndex();
+  const root = resolve(options.root);
+  checkInsideRoot(moves, root);
   checkMoves(
     moves,
     (path) => existsSync(toNative(path)),
     (path) => hasExactName(fs.entries(dirname(path)), basename(path)),
+    (path) => [...fs.entries(path)].map(([name, kind]) => (kind === 'dir' ? `${name}/` : name)),
   );
   const map = createPathMapper(moves);
-  const root = resolve(options.root);
   const realign = moves.length === 0;
 
-  const projects = options.tsconfigs.map((tsconfig) => loadProject(resolve(tsconfig)));
+  const loadedProjects = loadProjects(options.tsconfigs.map((tsconfig) => resolve(tsconfig)));
+  const projects = loadedProjects.map(({ project }) => project);
   clock.lap('tsconfig');
 
   const scanWarnings: string[] = [];
-  for (const [index, project] of projects.entries()) {
-    const config = options.tsconfigs[index];
+  for (const { config, project } of loadedProjects) {
     if (project.missing) scanWarnings.push(`${config}: not found; aliases are not resolved`);
-    if (project.hasReferences) scanWarnings.push(`${config}: "references" are not followed`);
   }
 
   const packageList: Pkg[] = [];

@@ -10,6 +10,7 @@ Every file that refers to `Button` is updated, whether it uses a relative path, 
 
 ```
 $ npx movemod src/components/Button src/ui/Button --dry-run
+root: . (nearest package.json)
 src/components/Button -> src/ui/Button
 
 src/components/Button/index.tsx:1
@@ -89,17 +90,44 @@ bun run build:bin linux-x64   # for another machine
 
 Targets: `darwin-arm64`, `darwin-x64`, `linux-arm64`, `linux-x64`, `linux-arm64-musl`, `linux-x64-musl` (Alpine), `win32-arm64`, `win32-x64`.
 
+## Project root and tsconfig
+
+Both are detected from the paths you give. Use `--root` and `--tsconfig` only to override.
+
+Root: for each path, start at the folder that holds it, go up, and stop at the first folder that matches (priority order):
+
+1. A folder with `package.json`, `deno.json`, `deno.jsonc` or `jsr.json`
+2. A folder with `.git`, `.hg` or `.svn` (the repository boundary: it never goes above it)
+3. A folder with `tsconfig.json` or `jsconfig.json`
+4. None of the above: the folder that contains all the paths
+
+If the paths give different roots (a move between packages or projects), movemod stops with an error. When a workspaces root (`"workspaces"` in `package.json`, or `pnpm-workspace.yaml`, `turbo.json`, `nx.json`, `lerna.json`, `rush.json`) contains them, the error names it:
+
+```
+They are in the workspaces root /r. Set --root /r to move between packages.
+```
+
+A move inside one package does not look above that package. Sibling packages that import it by name (`@scope/pkg/src/x`) are not updated; pass `--root <monorepo root>` to include them.
+
+It never goes up into the home folder. The chosen root and the rule are printed first:
+
+```
+root: apps/web (nearest package.json)
+```
+
+tsconfig: from each path, go up to the root and use the first folder that has one. In that folder, the order is `tsconfig.json`, `tsconfig.*.json`, `jsconfig.json`. `references` are followed. With none, all files are rewritten and aliases are not resolved.
+
 ## Options
 
 | Option | Description |
 |---|---|
 | `--dry-run` | Show what would change; change nothing |
-| `--tsconfig <path>` | tsconfig or jsconfig that selects the files to rewrite. Repeatable. Default: `./tsconfig.json`, else `./jsconfig.json`. With neither, all files are rewritten and aliases are not resolved |
+| `--tsconfig <path>` | tsconfig or jsconfig that selects the files to rewrite. Repeatable. Default: detected (see above) |
 | `--bulk-list <path>` | File with a list of moves, one `<from> <to>` per line. Lines starting with `#` are ignored |
 | `--style <shortest\|keep>` | Import style. See above. Default: `shortest` |
 | `--func <name>` | Also rewrite the path in the first argument of this function, e.g. `loadModule('./foo')`. `require`, `require.resolve`, `import()`, `import.meta.resolve`, `new URL(..., import.meta.url)`, `vi.*` and `jest.*` mocks are built in. Repeatable |
 | `--include <path>` | Extra file or folder to rewrite that the tsconfig does not cover. Repeatable |
-| `--root <dir>` | Where to look for `package.json` and config files. Default: working directory |
+| `--root <dir>` | Project root: where to look for `package.json` and config files. Moving a path outside it is an error. Default: detected (see above) |
 | `--workers <n>` | Worker threads. `1` disables. Default: chosen from the file count |
 | `--verbose` | List every changed line |
 | `--timing` | Show the time of each stage |

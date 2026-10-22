@@ -1,10 +1,12 @@
 #!/usr/bin/env node
-import { existsSync, readFileSync } from 'node:fs';
-import { relative } from 'node:path/posix';
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
+import { dirname, relative } from 'node:path/posix';
+import { homedir } from 'node:os';
 import { parseArgs } from 'node:util';
 import { parseBulkList, parseWorkers } from './args.ts';
 import { run, type Options } from './engine.ts';
-import { resolveInput, toNative, toNativeText } from './paths.ts';
+import { fromNative, resolveInput, toNative, toNativeText } from './paths.ts';
+import { findTsconfigs, resolveRoot } from './root.ts';
 import type { Style } from './style.ts';
 
 const DRY_RUN_LIMIT = 50;
@@ -26,11 +28,15 @@ Options:
   --dry-run                 show what would change; change nothing
   --bulk-list <path>        file with moves, one "<from> <to>" per line; lines starting with "#" are ignored
   --style <shortest|keep>   shortest: relative first, alias when shorter (default); keep: keep each import's style
-  --tsconfig <path>         tsconfig or jsconfig that selects the files (repeatable; default: ./tsconfig.json, else ./jsconfig.json)
+  --tsconfig <path>         tsconfig or jsconfig that selects the files (repeatable; default: above each path, the nearest folder's tsconfig.json, else tsconfig.*.json, else jsconfig.json)
   --func <name>             also rewrite the path in the first argument of this function, e.g. loadModule (repeatable)
                             built in: require, import(), vi.mock, jest.mock
   --include <path>          extra file or folder to rewrite (repeatable)
-  --root <dir>              where to look for package.json and config files (default: cwd)
+  --root <dir>              project root: where to look for package.json and config files; all paths must be inside
+                            default: for each path, go up from its folder and stop at the first match:
+                            package.json/deno.json/jsr.json > .git/.hg/.svn > tsconfig.json/jsconfig.json > the folder shared by the paths.
+                            If the paths give different roots (a move between packages or projects), it stops;
+                            set --root to a folder that contains all of them (e.g. the workspaces root)
   --workers <n>             worker threads (1 disables)
   --verbose                 list every changed line
   --timing                  show the time of each stage
@@ -98,16 +104,48 @@ for (let i = 0; i < paths.length; i += 2) {
   moves.push({ from: resolveInput(paths[i]), to: resolveInput(paths[i + 1]) });
 }
 
-const defaultConfig = ['tsconfig.json', 'jsconfig.json'].find((name) => existsSync(name));
-const tsconfigs = (values.tsconfig ?? [defaultConfig ?? 'tsconfig.json']).map(resolveInput);
+const exists = (path: string) => existsSync(toNative(path));
+const listNames = (dir: string): string[] => {
+  try {
+    return readdirSync(toNative(dir));
+  } catch {
+    return [];
+  }
+};
+const readIfExists =(path: string) => (exists(path) ? readFileSync(toNative(path), 'utf8') : undefined);
+// The folders to search from. To normalize a folder, the folder itself; for a move, the folder holding
+// each path (a moved folder's own package.json does not make it the project)
+const startFolders = scope
+  ? scope.map((path) => (statSync(toNative(path)).isDirectory() ? path : dirname(path)))
+  : moves.flatMap(({ from, to }) => [dirname(from), dirname(to)]);
+let detected: { root: string; reason: string };
+if (values.root) {
+  detected = { root: resolveInput(values.root), reason: '--root' };
+} else {
+  try {
+    detected = resolveRoot(startFolders, fromNative(homedir()), exists, readIfExists);
+  } catch (error) {
+    fail(error instanceof Error ? error.message : String(error));
+  }
+}
+const root = detected.root;
+requireExisting('--root', root);
+
+// Without --tsconfig: the nearest one above each path, else ./tsconfig.json (reported as not found)
+const nearestConfigs = [
+  ...new Set(
+    (scope ?? moves.map(({ from }) => from)).flatMap((path) => findTsconfigs(path, root, listNames)),
+  ),
+];
+const tsconfigs = (values.tsconfig ?? (nearestConfigs.length > 0 ? nearestConfigs : ['tsconfig.json'])).map(
+  resolveInput,
+);
 if (values.tsconfig) {
   for (const tsconfig of tsconfigs) {
-    if (!existsSync(toNative(tsconfig))) fail(`tsconfig not found: ${tsconfig}`);
+    if (!exists(tsconfig)) fail(`tsconfig not found: ${tsconfig}`);
   }
 }
 
-const root = resolveInput(values.root ?? '.');
-requireExisting('--root', root);
 const includes = (values.include ?? []).map(resolveInput);
 for (const include of includes) requireExisting('--include', include);
 
@@ -147,6 +185,7 @@ try {
     process.exit(exitCode);
   }
 
+  print(`root: ${show(root)} (${detected.reason})`);
   for (const { from, to } of moves) print(`${show(from)} -> ${show(to)}`);
   for (const warning of result.warnings) console.warn(toNativeText(`warning: ${warning}`));
 

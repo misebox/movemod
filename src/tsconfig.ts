@@ -30,8 +30,8 @@ export type Project = {
   aliases: Alias[];
   // When there is no config file and all files with no aliases are used instead
   missing?: boolean;
-  // When references exist but are not followed
-  hasReferences?: boolean;
+  // Config files named in "references" (a folder means its tsconfig.json)
+  references: string[];
 };
 
 type Layer = { dir: string; raw: RawConfig };
@@ -96,9 +96,9 @@ export const loadProject = (tsconfig: string): Project => {
   const dir = dirname(tsconfig);
   // With no config file, target all files with no aliases
   if (!existsSync(toNative(tsconfig))) {
-    return { dir, include: ['**/*'], exclude: [], aliases: [], missing: true };
+    return { dir, include: ['**/*'], exclude: [], aliases: [], missing: true, references: [] };
   }
-  let hasReferences = false;
+  let references: string[] = [];
   let include: string[] | undefined;
   let exclude: string[] | undefined;
   let files: string[] | undefined;
@@ -113,7 +113,7 @@ export const loadProject = (tsconfig: string): Project => {
     if (raw.include) include = raw.include.map(fromTop);
     if (raw.exclude) exclude = raw.exclude.map(fromTop);
     if (raw.files) files = raw.files.map(fromTop);
-    if (layer === layers[layers.length - 1] && raw.references?.length) hasReferences = true;
+    if (layer === layers[layers.length - 1]) references = referencedConfigs(layer.dir, raw.references);
     const options = raw.compilerOptions;
     if (options?.baseUrl !== undefined) baseUrl = resolve(layer.dir, options.baseUrl);
     if (options?.paths) paths = { dir: layer.dir, map: options.paths };
@@ -139,6 +139,27 @@ export const loadProject = (tsconfig: string): Project => {
     include: include ?? files ?? ['**/*'],
     exclude: exclude ?? [],
     aliases,
-    hasReferences,
+    references,
   };
+};
+
+const referencedConfigs = (dir: string, references: unknown[] = []): string[] =>
+  references.flatMap((reference) => {
+    const path = (reference as { path?: unknown } | null)?.path;
+    if (typeof path !== 'string') return [];
+    const target = resolve(dir, path);
+    return [target.endsWith('.json') ? target : `${target}/tsconfig.json`];
+  });
+
+// The given configs plus everything they reference, directly or not, each once
+export const loadProjects = (tsconfigs: string[]): { config: string; project: Project }[] => {
+  const loaded = new Map<string, Project>();
+  const queue = [...tsconfigs];
+  for (let config = queue.shift(); config !== undefined; config = queue.shift()) {
+    if (loaded.has(config)) continue;
+    const project = loadProject(config);
+    loaded.set(config, project);
+    queue.push(...project.references);
+  }
+  return [...loaded].map(([config, project]) => ({ config, project }));
 };
