@@ -10,6 +10,8 @@ Every file that refers to `Button` is updated, whether it uses a relative path, 
 
 ```
 $ npx movemod src/components/Button src/components/ui/Button --dry-run
+root: . (nearest package.json)
+tsconfig: tsconfig.json (aliases: @/*)
 src/components/Button -> src/components/ui/Button
 
 src/components/Card.tsx:1
