@@ -48,7 +48,8 @@ const SHOWN_NAMES = 3;
 const describeContents = (names: string[]): string => {
   if (names.length === 0) return '';
   const hidden = names.length - SHOWN_NAMES;
-  const shown = names.slice(0, SHOWN_NAMES).join(', ');
+  // The order of a directory listing depends on the filesystem
+  const shown = [...names].sort().slice(0, SHOWN_NAMES).join(', ');
   return ` (contains: ${shown}${hidden > 0 ? `, ... and ${hidden} more` : ''})`;
 };
 
