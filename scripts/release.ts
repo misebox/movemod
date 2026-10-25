@@ -19,6 +19,7 @@ if (output('git', ['tag', '--list', tag]) !== '') fail(`Tag ${tag} already exist
 
 show('bun', ['test', './test']);
 show('bun', ['run', 'build']);
-show('git', ['tag', tag]);
+// An annotated tag: git push --follow-tags sends only these
+show('git', ['tag', '-a', tag, '-m', tag]);
 
 console.log(`\nTagged ${tag}. Push it to publish:\n  git push --follow-tags`);
