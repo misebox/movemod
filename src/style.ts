@@ -3,7 +3,8 @@ import type { Alias } from './tsconfig.ts';
 
 // shortest: './' first; when '../' is needed, the alias if it is shorter
 // keep:     keeps the current form (relative or alias)
-export type Style = 'shortest' | 'keep';
+// relative: always relative; aliases are expanded
+export type Style = 'shortest' | 'keep' | 'relative';
 
 export type Origin = 'relative' | 'alias' | 'package';
 
@@ -57,7 +58,7 @@ export const chooseSpecifier = (options: {
   const { style, origin, aliases, fromDir, target } = options;
   const relativeText = relativeSpecifier(fromDir, target);
   const aliasText = aliasSpecifier(aliases, target);
-  if (aliasText === undefined) return relativeText;
+  if (aliasText === undefined || style === 'relative') return relativeText;
   if (style === 'keep') return origin === 'alias' ? aliasText : relativeText;
   if (relativeText.startsWith('./')) return relativeText;
   return aliasText.length < relativeText.length ? aliasText : relativeText;

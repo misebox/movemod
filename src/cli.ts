@@ -27,7 +27,9 @@ Usage:
 Options:
   --dry-run                 show what would change; change nothing
   --bulk-list <path>        file with moves, one "<from> <to>" per line; lines starting with "#" are ignored
-  --style <shortest|keep>   shortest: relative first, alias when shorter (default); keep: keep each import's style
+  --style <shortest|keep|relative>
+                            shortest: relative first, alias when shorter (default); keep: keep each import's style;
+                            relative: always relative (aliases are expanded)
   --tsconfig <path>         tsconfig or jsconfig that selects the files (repeatable; default: above each path, the nearest folder's tsconfig.json, else tsconfig.*.json, else jsconfig.json)
   --func <name>             also rewrite the path in the first argument of this function, e.g. loadModule (repeatable)
                             built in: require, import(), vi.mock, jest.mock
@@ -79,7 +81,9 @@ if (values.help) {
 }
 
 const style = values.style ?? 'shortest';
-if (style !== 'shortest' && style !== 'keep') fail('--style must be shortest or keep');
+if (style !== 'shortest' && style !== 'keep' && style !== 'relative') {
+  fail('--style must be shortest, keep or relative');
+}
 
 const requireExisting = (label: string, path: string) => {
   if (!existsSync(toNative(path))) fail(`${label} not found: ${path}`);
@@ -190,6 +194,10 @@ try {
   }
 
   print(`root: ${show(root)} (${detected.reason})`);
+  for (const config of result.configs) {
+    const detail = config.missing ? 'not found' : `aliases: ${config.aliases.join(', ') || 'none'}`;
+    print(`tsconfig: ${show(config.file)} (${config.referenced ? 'referenced; ' : ''}${detail})`);
+  }
   for (const { from, to } of moves) print(`${show(from)} -> ${show(to)}`);
   for (const warning of result.warnings) console.warn(toNativeText(`warning: ${warning}`));
 

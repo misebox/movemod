@@ -55,7 +55,11 @@ export type Options = {
   rewriteConfig?: boolean;
 };
 
+// A tsconfig that was read. aliases lists its "paths" keys, and "baseUrl" when it sets one
+export type ConfigInfo = { file: string; aliases: string[]; missing: boolean; referenced: boolean };
+
 export type Result = {
+  configs: ConfigInfo[];
   scannedFiles: number;
   // Number of files left unchanged because of syntax errors etc.
   skippedFiles: number;
@@ -180,7 +184,16 @@ export const run = async (options: Options): Promise<Result> => {
   const map = createPathMapper(moves);
   const realign = moves.length === 0;
 
-  const loadedProjects = loadProjects(options.tsconfigs.map((tsconfig) => resolve(tsconfig)));
+  const givenConfigs = options.tsconfigs.map((tsconfig) => resolve(tsconfig));
+  const loadedProjects = loadProjects(givenConfigs);
+  const configs = loadedProjects.map(({ config, project }) => ({
+    file: config,
+    aliases: project.aliases.map((alias) =>
+      alias.implicit ? 'baseUrl' : `${alias.prefix}${alias.wildcard ? '*' : ''}${alias.suffix}`,
+    ),
+    missing: project.missing ?? false,
+    referenced: !givenConfigs.includes(config),
+  }));
   const projects = loadedProjects.map(({ project }) => project);
   clock.lap('tsconfig');
 
@@ -333,6 +346,7 @@ export const run = async (options: Options): Promise<Result> => {
   configHits.sort((a, b) => a.file.localeCompare(b.file) || a.line - b.line);
   warnings.sort();
   return {
+    configs,
     scannedFiles: targets.length,
     skippedFiles,
     changedFiles: edits.length,

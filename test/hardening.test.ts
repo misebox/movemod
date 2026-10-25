@@ -301,6 +301,20 @@ describe('command line', () => {
 
     expect(result.stdout.toString()).toContain("+ import { cn } from '@/utils/cn';");
   });
+
+  test('prints each tsconfig that was read, with its aliases', () => {
+    const root = fixture({
+      'tsconfig.json': JSON.stringify({ files: [], references: [{ path: './tsconfig.app.json' }] }),
+      'tsconfig.app.json': JSON.stringify({ compilerOptions: { paths: { '@/*': ['./src/*'] } }, include: ['src'] }),
+      'src/a.ts': 'export const a = 1;\n',
+    });
+
+    const result = execute(root, ['src/a.ts', 'src/b.ts', '--dry-run']);
+
+    const output = result.stdout.toString();
+    expect(output).toContain('tsconfig: tsconfig.json (aliases: none)');
+    expect(output).toContain('tsconfig: tsconfig.app.json (referenced; aliases: @/*)');
+  });
 });
 
 describe('config files', () => {

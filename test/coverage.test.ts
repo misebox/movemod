@@ -86,6 +86,22 @@ describe('--style', () => {
       importer.replace("'../../../lib/util'", "'@/lib/util'"),
     );
   });
+
+  test('relative expands aliases of imports that are rewritten, and of every import without moves', async () => {
+    const root = fixtureWithImporter();
+
+    await run(base(root, { style: 'relative', moves: [move(root, 'src/lib/util.ts', 'src/lib/helpers.ts')] }));
+
+    expect(read(root, 'src/a/b/c/m.ts')).toBe(
+      importer.replaceAll(/'(@|\.\.\/\.\.\/\.\.)\/lib\/util'/g, "'../../../lib/helpers'"),
+    );
+
+    const other = fixtureWithImporter();
+
+    await run(base(other, { style: 'relative', scope: [join(other, 'src')] }));
+
+    expect(read(other, 'src/a/b/c/m.ts')).toBe(importer.replace("'@/lib/util'", "'../../../lib/util'"));
+  });
 });
 
 describe('specifier styles', () => {

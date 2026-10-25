@@ -71,7 +71,8 @@ import { y } from '../y';         // '@/a/b/y' is longer: relative
 import { z } from '@/lib/z';      // '../../../lib/z' is longer: alias
 ```
 
-Use `--style keep` to keep each import's current style.
+- `--style keep`: keep each import's current style.
+- `--style relative`: always relative; aliases are expanded. An alias is expanded only when its `paths` are found (see [tsconfig](#tsconfig)).
 
 ## Check by hand
 
@@ -133,6 +134,13 @@ Detected from the paths you give. Override with `--tsconfig`.
 
 From each path, go up to the root and use the first folder that has `tsconfig.json`, else `tsconfig.*.json`, else `jsconfig.json`. `references` are followed. With none, all files are rewritten and aliases are not resolved.
 
+Every tsconfig that was read is printed after `root:`, with its `paths` keys (`baseUrl` if it sets one). `extends` is followed. `aliases: none` means no alias is applied:
+
+```
+tsconfig: apps/web/tsconfig.json (aliases: none)
+tsconfig: apps/web/tsconfig.app.json (referenced; aliases: @/*)
+```
+
 ## Options
 
 | Option | Description |
@@ -140,7 +148,7 @@ From each path, go up to the root and use the first folder that has `tsconfig.js
 | `--dry-run` | Show what would change; change nothing |
 | `--tsconfig <path>` | tsconfig or jsconfig that selects the files to rewrite. Repeatable. Default: detected (see above) |
 | `--bulk-list <path>` | File with a list of moves, one `<from> <to>` per line. Lines starting with `#` are ignored |
-| `--style <shortest\|keep>` | Import style. See above. Default: `shortest` |
+| `--style <shortest\|keep\|relative>` | Import style. See above. Default: `shortest` |
 | `--func <name>` | Also rewrite the path in the first argument of this function, e.g. `loadModule('./foo')`. `require`, `require.resolve`, `import()`, `import.meta.resolve`, `new URL(..., import.meta.url)`, `vi.*` and `jest.*` mocks are built in. Repeatable |
 | `--include <path>` | Extra file or folder to rewrite that the tsconfig does not cover. Repeatable |
 | `--root <dir>` | Project root: where to look for `package.json` and config files. Moving a path outside it is an error. Default: detected (see above) |
