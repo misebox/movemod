@@ -43,12 +43,12 @@
     "build": "bun build src/cli.ts src/worker.ts --target=node --external oxc-parser --outdir dist",
     "build:bin": "bun scripts/build-bin.ts",
     "bench": "bun bench/run.ts",
-    "release": "npm whoami || npm login && bun run build && npm publish"
+    "release": "bun scripts/release.ts"
   },
   "devDependencies": {
     "typescript": "5"
   },
   "dependencies": {
-    "oxc-parser": "^0.155.0"
+    "oxc-parser": "0.155.0"
   }
 }

@@ -5,7 +5,7 @@
     "": {
       "name": "movemod",
       "dependencies": {
-        "oxc-parser": "^0.155.0",
+        "oxc-parser": "0.155.0",
       },
       "devDependencies": {
         "typescript": "5",

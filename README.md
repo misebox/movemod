@@ -150,3 +150,13 @@ From each path, go up to the root and use the first folder that has `tsconfig.js
 | `--json` | Print the result as JSON |
 | `--rewrite-config` | Also rewrite paths in `package.json`, `tsconfig*.json` and `jsconfig*.json`. Without it they are only reported |
 | `--force` | Apply even with warnings. Without it, warnings stop the run before any change |
+
+## Release
+
+For maintainers. CI publishes to npm with [provenance](https://docs.npmjs.com/generating-provenance-statements) when a `v*` tag is pushed.
+
+1. Bump `version` in `package.json` and commit.
+2. `bun run release`: on `main` with a clean tree, runs the tests and the build, then creates the tag `v<version>`.
+3. `git push --follow-tags`
+
+One-time setup on npmjs.com: add a Trusted Publisher for this package (repository `misebox/movemod`, workflow `release.yml`).
