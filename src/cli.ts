@@ -27,8 +27,9 @@ Usage:
 Options:
   --dry-run                 show what would change; change nothing
   --bulk-list <path>        file with moves, one "<from> <to>" per line; lines starting with "#" are ignored
-  --style <shortest|keep|relative>
-                            shortest: relative first, alias when shorter (default); keep: keep each import's style;
+  --style <auto|shortest|keep|relative>
+                            auto: "./" if possible, else an alias if there is one, else "../" (default);
+                            shortest: relative first, alias when shorter; keep: keep each import's style;
                             relative: always relative (aliases are expanded)
   --tsconfig <path>         tsconfig or jsconfig that selects the files (repeatable; default: above each path, the nearest folder's tsconfig.json, else tsconfig.*.json, else jsconfig.json)
   --func <name>             also rewrite the path in the first argument of this function, e.g. loadModule (repeatable)
@@ -80,9 +81,9 @@ if (values.help) {
   process.exit(0);
 }
 
-const style = values.style ?? 'shortest';
-if (style !== 'shortest' && style !== 'keep' && style !== 'relative') {
-  fail('--style must be shortest, keep or relative');
+const style = values.style ?? 'auto';
+if (style !== 'auto' && style !== 'shortest' && style !== 'keep' && style !== 'relative') {
+  fail('--style must be auto, shortest, keep or relative');
 }
 
 const requireExisting = (label: string, path: string) => {

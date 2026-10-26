@@ -54,10 +54,11 @@ Any warning stops the run before anything is changed, and the exit code is 1. A 
 
 ## Import style
 
-Imports that movemod rewrites follow one rule:
+Imports that movemod rewrites follow one rule (`--style auto`):
 
 - Use a relative path when `./` works.
-- When `../` is needed, use a tsconfig `paths` alias if it is shorter.
+- When `../` is needed, use a tsconfig `paths` alias if there is one. With several, the one with the fewest segments wins, then the fewest characters.
+- With no alias, use `../`.
 
 To apply the rule to a folder without moving anything:
 
@@ -69,10 +70,11 @@ With `"paths": { "@/*": ["./src/*"] }`, in `src/a/b/c/file.ts`:
 
 ```ts
 import { x } from './x';          // same folder: relative
-import { y } from '../y';         // '@/a/b/y' is longer: relative
-import { z } from '@/lib/z';      // '../../../lib/z' is longer: alias
+import { y } from '@/a/b/y';      // '../y' needs '../': alias
+import { z } from '@/lib/z';      // '../../../lib/z' needs '../': alias
 ```
 
+- `--style shortest`: relative first, alias only when it is shorter in characters.
 - `--style keep`: keep each import's current style.
 - `--style relative`: always relative; aliases are expanded. An alias is expanded only when its `paths` are found (see [tsconfig](#tsconfig)).
 
@@ -150,7 +152,7 @@ tsconfig: apps/web/tsconfig.app.json (referenced; aliases: @/*)
 | `--dry-run` | Show what would change; change nothing |
 | `--tsconfig <path>` | tsconfig or jsconfig that selects the files to rewrite. Repeatable. Default: detected (see above) |
 | `--bulk-list <path>` | File with a list of moves, one `<from> <to>` per line. Lines starting with `#` are ignored |
-| `--style <shortest\|keep\|relative>` | Import style. See above. Default: `shortest` |
+| `--style <auto\|shortest\|keep\|relative>` | Import style. See above. Default: `auto` |
 | `--func <name>` | Also rewrite the path in the first argument of this function, e.g. `loadModule('./foo')`. `require`, `require.resolve`, `import()`, `import.meta.resolve`, `new URL(..., import.meta.url)`, `vi.*` and `jest.*` mocks are built in. Repeatable |
 | `--include <path>` | Extra file or folder to rewrite that the tsconfig does not cover. Repeatable |
 | `--root <dir>` | Project root: where to look for `package.json` and config files. Moving a path outside it is an error. Default: detected (see above) |

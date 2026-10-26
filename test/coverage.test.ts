@@ -87,6 +87,58 @@ describe('--style', () => {
     );
   });
 
+  test('auto uses an alias whenever "../" would be needed; shortest compares characters', async () => {
+    const files = {
+      'tsconfig.json': TSCONFIG,
+      'src/a/b/y.ts': 'export const y = 1;\n',
+      'src/a/b/c/m.ts': "import { y } from '../y';\nimport { x } from './x';\nexport const m = [x, y];\n",
+      'src/a/b/c/x.ts': 'export const x = 1;\n',
+    };
+    const auto = fixture(files);
+    const shortest = fixture(files);
+
+    await run(base(auto, { style: 'auto', scope: [join(auto, 'src')] }));
+    await run(base(shortest, { style: 'shortest', scope: [join(shortest, 'src')] }));
+
+    expect(read(auto, 'src/a/b/c/m.ts')).toContain("from '@/a/b/y'");
+    expect(read(auto, 'src/a/b/c/m.ts')).toContain("from './x'");
+    expect(read(shortest, 'src/a/b/c/m.ts')).toContain("from '../y'");
+  });
+
+  test('auto keeps "." (the index of the same folder) relative', async () => {
+    const root = fixture({
+      'tsconfig.json': TSCONFIG,
+      'src/a/index.ts': 'export const i = 1;\n',
+      'src/a/b.ts': "import { i } from '.';\nexport const b = i;\n",
+    });
+
+    await run(base(root, { style: 'auto', scope: [join(root, 'src')] }));
+
+    expect(read(root, 'src/a/b.ts')).toContain("from '.'");
+  });
+
+  test('auto picks the alias with the fewest segments, then the fewest characters; no alias keeps "../"', async () => {
+    const root = fixture({
+      'tsconfig.json': JSON.stringify({
+        compilerOptions: { paths: { '@/*': ['./src/*'], '@lib/*': ['./src/lib/*'] } },
+        include: ['src'],
+      }),
+      'src/lib/z.ts': 'export const z = 1;\n',
+      'src/app/m.ts': "import { z } from '../lib/z';\nexport const m = z;\n",
+    });
+    const plain = fixture({
+      'tsconfig.json': '{ "include": ["src"] }',
+      'src/lib/z.ts': 'export const z = 1;\n',
+      'src/app/m.ts': "import { z } from '../lib/z';\nexport const m = z;\n",
+    });
+
+    await run(base(root, { style: 'auto', scope: [join(root, 'src')] }));
+    await run(base(plain, { style: 'auto', scope: [join(plain, 'src')] }));
+
+    expect(read(root, 'src/app/m.ts')).toContain("from '@lib/z'");
+    expect(read(plain, 'src/app/m.ts')).toContain("from '../lib/z'");
+  });
+
   test('relative expands aliases of imports that are rewritten, and of every import without moves', async () => {
     const root = fixtureWithImporter();
 
